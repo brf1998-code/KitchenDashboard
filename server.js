@@ -29,11 +29,11 @@ const GEO_BASE = process.env.GEO_BASE || 'https://nominatim.openstreetmap.org';
 
 // MBTA feeds: label, route badge, query. Stop ids verified against api-v3.mbta.com.
 const MBTA_FEEDS = [
-  { key: 'red', badge: 'RL', color: '#DA291C', label: 'Red Line · Central → Kendall/MIT',
+  { key: 'red', badge: 'RL', color: '#DA291C', label: 'Red Line → Kendall/MIT', sub: 'from Central',
     params: 'filter[stop]=place-cntsq&filter[route]=Red&filter[direction_id]=0' },
-  { key: 'bus1', badge: '1', color: '#FFC72C', label: '1 bus · Mass Ave opp Lee St → BMC',
+  { key: 'bus1', badge: '1', color: '#FFC72C', label: '1 bus → BMC', sub: 'Mass Ave opp Lee St',
     params: 'filter[stop]=69&filter[route]=1&filter[direction_id]=1' },
-  { key: 'bus47', badge: '47', color: '#FFC72C', label: '47 bus · Central (Green St) → Longwood/BCH',
+  { key: 'bus47', badge: '47', color: '#FFC72C', label: '47 bus → Longwood/BCH', sub: 'Green St @ Magazine',
     params: 'filter[stop]=1123&filter[route]=47&filter[direction_id]=1' },
 ];
 
@@ -73,6 +73,7 @@ db.exec(`
 try { db.exec("ALTER TABLE photos ADD COLUMN taken TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE photos ADD COLUMN place TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE chores ADD COLUMN due TEXT DEFAULT ''"); } catch (e) {}
+db.exec('CREATE TABLE IF NOT EXISTS pins (weekend_id TEXT PRIMARY KEY, created TEXT)');
 try {
   db.exec(`INSERT OR IGNORE INTO chore_marks (chore_id, date, person, done_at)
     SELECT chore_id, date, person, done_at FROM chore_log`);
@@ -218,7 +219,7 @@ async function fetchMbta() {
       const mins = upcoming.slice(0, 3).map(d => d.min);
       const later = upcoming.slice(3).map(d =>
         new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(d.iso)));
-      out.push({ key: f.key, badge: f.badge, color: f.color, label: f.label, mins, later, live });
+      out.push({ key: f.key, badge: f.badge, color: f.color, label: f.label, sub: f.sub, mins, later, live });
     }));
     // keep feed order stable
     out.sort((a, b) => MBTA_FEEDS.findIndex(f => f.key === a.key) - MBTA_FEEDS.findIndex(f => f.key === b.key));
@@ -244,20 +245,30 @@ async function fetchWeekend() {
     const cookie = await weekendLogin();
     const s = await getJSON(`${WEEKEND_URL}/api/state`, { Cookie: cookie });
     const today = localISO();
-    const upcoming = (s.weekends || []).filter(w => w.end >= today).sort((a, b) => a.sat < b.sat ? -1 : 1);
-    const next = upcoming[0] || null;
-    const nextPlanned = upcoming.find(w => ['planning', 'planned'].includes(w.status) && (!next || w.id !== next.id)) ||
-      (next && ['planning', 'planned'].includes(next.status) ? null : null);
-    const shape = w => {
+    const future = (s.weekends || []).filter(w => w.end >= today).sort((a, b) => a.sat < b.sat ? -1 : 1);
+    const avFor = id => {
+      const av = {};
+      for (const a of (s.avail || []).filter(a => a.weekend_id === id))
+        av[a.person] = { state: a.state, note: a.note, golden: !!a.golden };
+      return av;
+    };
+    const compact = w => ({ id: w.id, start: w.start, end: w.end, label: w.label, status: w.status,
+      title: w.title, destination: w.destination, av: avFor(w.id) });
+    const detail = w => {
       if (!w) return null;
-      const av = {}; for (const a of (s.avail || []).filter(a => a.weekend_id === w.id)) av[a.person] = { state: a.state, note: a.note, golden: !!a.golden };
       const items = (s.items || []).filter(i => i.weekend_id === w.id);
-      return { id: w.id, start: w.start, end: w.end, label: w.label, status: w.status,
-        title: w.title, destination: w.destination, notes: w.notes, url: w.url, av,
-        items: items.slice(0, 8).map(i => ({ day: i.day, time: i.time, text: i.text, done: !!i.done })),
+      return { ...compact(w), notes: w.notes, url: w.url,
+        items: items.slice(0, 6).map(i => ({ day: i.day, time: i.time, text: i.text, done: !!i.done })),
         itemCount: items.length };
     };
-    return { next: shape(next), nextPlanned: shape(nextPlanned), url: WEEKEND_URL };
+    const next = future[0] || null;
+    const pinIds = db.prepare('SELECT weekend_id FROM pins').all().map(p => p.weekend_id);
+    const pinned = future.filter(w => pinIds.includes(w.id) && (!next || w.id !== next.id)).map(compact);
+    const upcoming = future.slice(1, 7).filter(w => !pinIds.includes(w.id)).map(compact);
+    // picker list for the settings modal: future weekends worth pinning
+    const all = future.slice(0, 40).map(w => ({ id: w.id, start: w.start, end: w.end,
+      title: w.title || w.destination || '', status: w.status, pinned: pinIds.includes(w.id) }));
+    return { next: detail(next), pinned, upcoming, all, url: WEEKEND_URL };
   });
 }
 
@@ -470,6 +481,20 @@ app.delete('/api/photos/:id', requireAuth, (req, res) => {
 app.get('/img/photos/:file', requireAuth, (req, res) => {
   const f = path.basename(req.params.file);
   res.sendFile(path.join(DATA_DIR, 'photos', f), err => { if (err) res.status(404).end(); });
+});
+
+// pinned weekends
+app.post('/api/pins', requireAuth, (req, res) => {
+  const id = String((req.body || {}).weekend_id || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(id)) return res.status(400).json({ error: 'weekend_id required' });
+  db.prepare('INSERT OR REPLACE INTO pins (weekend_id, created) VALUES (?, ?)').run(id, new Date().toISOString());
+  cache.delete('weekend');
+  res.json({ ok: true });
+});
+app.delete('/api/pins/:id', requireAuth, (req, res) => {
+  db.prepare('DELETE FROM pins WHERE weekend_id = ?').run(req.params.id);
+  cache.delete('weekend');
+  res.json({ ok: true });
 });
 
 // feedback
