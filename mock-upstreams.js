@@ -37,7 +37,7 @@ app.get('/wk/api/state', (req, res) => res.json({
 // --- MBTA ---
 app.get('/predictions', (req, res) => {
   const stop = (req.query.filter || {}).stop || req.query['filter[stop]'];
-  const offsets = stop === 'place-cntsq' ? [3, 9, 17] : stop === '69' ? [6, 21] : [11, 41];
+  const offsets = stop === 'place-cntsq' ? [3, 9, 17, 26, 38, 51] : stop === '69' ? [6, 21, 44, 68] : [11, 41, 71];
   res.json({ data: offsets.map((m, i) => ({ id: 'p' + i, attributes: { departure_time: iso(mins(m)) } })) });
 });
 app.get('/schedules', (req, res) => res.json({ data: [] }));
@@ -65,5 +65,9 @@ app.get('/wo/api/state', (req, res) => res.json({ days: {
     Brendan: 'Push day — bench 4x6, OHP 3x8, dips, 20 min zone 2',
     Emma: 'Tempo run 4 mi + core',
   } } }));
+
+// --- Nominatim reverse geocode ---
+app.get('/reverse', (req, res) => res.json({
+  address: { city: 'Cambridge', state: 'Massachusetts' } }));
 
 app.listen(4000, () => console.log('mock upstreams on :4000'));

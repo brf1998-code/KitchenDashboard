@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const exifr = require('exifr');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
@@ -24,6 +25,7 @@ const NWS_BASE = process.env.NWS_BASE || 'https://api.weather.gov';
 const LAT = process.env.LAT || '42.3653';   // Central Square, Cambridge
 const LON = process.env.LON || '-71.1035';
 const NWS_UA = 'KitchenDashboard (personal kiosk, brf1998@gmail.com)';
+const GEO_BASE = process.env.GEO_BASE || 'https://nominatim.openstreetmap.org';
 
 // MBTA feeds: label, route badge, query. Stop ids verified against api-v3.mbta.com.
 const MBTA_FEEDS = [
@@ -61,6 +63,23 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file TEXT, caption TEXT DEFAULT '', added_by TEXT, created TEXT
   );
+  CREATE TABLE IF NOT EXISTS geo_cache (key TEXT PRIMARY KEY, name TEXT);
+  CREATE TABLE IF NOT EXISTS chore_marks (
+    chore_id INTEGER, date TEXT, person TEXT, done_at TEXT,
+    PRIMARY KEY (chore_id, date, person)
+  );
+`);
+// migrations for databases created before v3
+try { db.exec("ALTER TABLE photos ADD COLUMN taken TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE photos ADD COLUMN place TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE chores ADD COLUMN due TEXT DEFAULT ''"); } catch (e) {}
+try {
+  db.exec(`INSERT OR IGNORE INTO chore_marks (chore_id, date, person, done_at)
+    SELECT chore_id, date, person, done_at FROM chore_log`);
+  db.exec('DROP TABLE chore_log');
+} catch (e) {}
+db.exec(`
+  SELECT 1;
 `);
 
 function seed() {
@@ -179,7 +198,7 @@ async function fetchMbta() {
     await Promise.all(MBTA_FEEDS.map(async f => {
       let deps = [], live = true;
       try {
-        const j = await getJSON(`${MBTA_BASE}/predictions?${f.params}&sort=departure_time&page[limit]=4`, headers);
+        const j = await getJSON(`${MBTA_BASE}/predictions?${f.params}&sort=departure_time&page[limit]=7`, headers);
         deps = (j.data || [])
           .map(p => p.attributes.departure_time || p.attributes.arrival_time)
           .filter(Boolean);
@@ -189,14 +208,17 @@ async function fetchMbta() {
         try {
           const now = new Date();
           const hm = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
-          const j = await getJSON(`${MBTA_BASE}/schedules?${f.params}&filter[date]=${localISO(now)}&filter[min_time]=${hm.replace(':', '%3A')}&sort=departure_time&page[limit]=4`, headers);
+          const j = await getJSON(`${MBTA_BASE}/schedules?${f.params}&filter[date]=${localISO(now)}&filter[min_time]=${hm.replace(':', '%3A')}&sort=departure_time&page[limit]=7`, headers);
           deps = (j.data || []).map(s => s.attributes.departure_time).filter(Boolean);
         } catch (e) { /* leave empty */ }
       }
-      const mins = deps
-        .map(t => Math.round((new Date(t) - Date.now()) / 60000))
-        .filter(m => m > -1 && m < 180).slice(0, 3);
-      out.push({ key: f.key, badge: f.badge, color: f.color, label: f.label, mins, live });
+      const upcoming = deps
+        .map(t => ({ iso: t, min: Math.round((new Date(t) - Date.now()) / 60000) }))
+        .filter(d => d.min > -1 && d.min < 240).slice(0, 6);
+      const mins = upcoming.slice(0, 3).map(d => d.min);
+      const later = upcoming.slice(3).map(d =>
+        new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(d.iso)));
+      out.push({ key: f.key, badge: f.badge, color: f.color, label: f.label, mins, later, live });
     }));
     // keep feed order stable
     out.sort((a, b) => MBTA_FEEDS.findIndex(f => f.key === a.key) - MBTA_FEEDS.findIndex(f => f.key === b.key));
@@ -257,17 +279,33 @@ function choreAssignee(c, dateStr) {
   if (c.assignee !== 'alt') return c.assignee;
   return (isoWeek(dateStr) + c.id) % 2 === 0 ? 'b' : 'e';
 }
-function choresFor(dateStr, dow) {
+function choresFor(dateStr, dow, isToday = false) {
   const rows = db.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY pos, id').all();
-  const logs = db.prepare('SELECT * FROM chore_log WHERE date = ?').all(dateStr);
-  return rows
-    .filter(c => c.cadence === 'daily' || c.day === dow)
-    .map(c => {
-      const log = logs.find(l => l.chore_id === c.id);
-      return { id: c.id, title: c.title, area: c.area, cadence: c.cadence,
-        assignee: choreAssignee(c, dateStr), configured: c.assignee,
-        done: !!log, doneBy: log ? log.person : null };
-    });
+  const out = [];
+  for (const c of rows) {
+    let show = false, markDate = dateStr, overdue = false;
+    if (c.cadence === 'daily') show = true;
+    else if (c.cadence === 'weekly') show = c.day === dow;
+    else if (c.cadence === 'once' && c.due) {
+      if (c.due === dateStr) show = true;
+      else if (isToday && c.due < dateStr) {
+        // overdue one-time chores roll forward to today until finished
+        markDate = c.due;
+        const marks = db.prepare('SELECT person FROM chore_marks WHERE chore_id = ? AND date = ?').all(c.id, c.due);
+        const has = p => marks.some(m => m.person === p);
+        const doneAll = c.assignee === 'both' ? has('b') && has('e') : marks.length > 0;
+        if (!doneAll) { show = true; overdue = true; }
+      }
+    }
+    if (!show) continue;
+    const marks = db.prepare('SELECT person FROM chore_marks WHERE chore_id = ? AND date = ?').all(c.id, markDate);
+    const by = { b: marks.some(m => m.person === 'b'), e: marks.some(m => m.person === 'e') };
+    const assignee = choreAssignee(c, dateStr);
+    const done = c.assignee === 'both' ? by.b && by.e : by.b || by.e;
+    out.push({ id: c.id, title: c.title, area: c.area, cadence: c.cadence, due: c.due || '',
+      markDate, overdue, assignee, configured: c.assignee, done, by });
+  }
+  return out;
 }
 
 // ---------- app ----------
@@ -300,12 +338,12 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   for (let i = 0; i < 7; i++) {
     const d = new Date(now.getTime() + i * 86400000);
     const ds = localISO(d), ddow = localDow(d);
-    week.push({ date: ds, dow: ddow, chores: choresFor(ds, ddow) });
+    week.push({ date: ds, dow: ddow, chores: choresFor(ds, ddow, i === 0) });
   }
   res.json({
     role: req.role, serverTime: now.toISOString(), today,
     weather, mbta, weekend, workouts,
-    chores: { today: choresFor(today, dow), week },
+    chores: { today: choresFor(today, dow, true), week },
     photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC LIMIT 60').all(),
     feedbackOpen: db.prepare("SELECT COUNT(*) c FROM feedback WHERE status='new'").get().c,
   });
@@ -313,11 +351,13 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
 // chores CRUD + toggle
 app.post('/api/chores', requireAuth, (req, res) => {
-  const { title = '', area = '', cadence = 'weekly', day = -1, assignee = 'alt' } = req.body || {};
+  const { title = '', area = '', cadence = 'weekly', day = -1, assignee = 'alt', due = '' } = req.body || {};
   if (!title.trim()) return res.status(400).json({ error: 'title required' });
+  const cad = ['daily', 'weekly', 'once'].includes(cadence) ? cadence : 'weekly';
+  if (cad === 'once' && !/^\d{4}-\d{2}-\d{2}$/.test(String(due))) return res.status(400).json({ error: 'due date required for one-time chores' });
   const pos = (db.prepare('SELECT MAX(pos) m FROM chores').get().m || 0) + 1;
-  db.prepare('INSERT INTO chores (title, area, cadence, day, assignee, pos) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(String(title), String(area), cadence === 'daily' ? 'daily' : 'weekly', Number(day), String(assignee), pos);
+  db.prepare('INSERT INTO chores (title, area, cadence, day, assignee, pos, due) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(String(title), String(area), cad, Number(day), String(assignee), pos, cad === 'once' ? String(due) : '');
   res.json({ ok: true });
 });
 app.patch('/api/chores/:id', requireAuth, (req, res) => {
@@ -331,15 +371,17 @@ app.patch('/api/chores/:id', requireAuth, (req, res) => {
 });
 app.delete('/api/chores/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM chores WHERE id = ?').run(req.params.id);
-  db.prepare('DELETE FROM chore_log WHERE chore_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM chore_marks WHERE chore_id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 app.post('/api/chores/:id/toggle', requireAuth, (req, res) => {
   const date = String((req.body || {}).date || localISO());
   const person = ['b', 'e'].includes((req.body || {}).person) ? req.body.person : req.role;
-  const existing = db.prepare('SELECT * FROM chore_log WHERE chore_id = ? AND date = ?').get(req.params.id, date);
-  if (existing) db.prepare('DELETE FROM chore_log WHERE chore_id = ? AND date = ?').run(req.params.id, date);
-  else db.prepare('INSERT INTO chore_log (chore_id, date, person, done_at) VALUES (?, ?, ?, ?)')
+  const existing = db.prepare('SELECT * FROM chore_marks WHERE chore_id = ? AND date = ? AND person = ?')
+    .get(req.params.id, date, person);
+  if (existing) db.prepare('DELETE FROM chore_marks WHERE chore_id = ? AND date = ? AND person = ?')
+    .run(req.params.id, date, person);
+  else db.prepare('INSERT INTO chore_marks (chore_id, date, person, done_at) VALUES (?, ?, ?, ?)')
     .run(req.params.id, date, person, new Date().toISOString());
   res.json({ ok: true, done: !existing });
 });
@@ -359,11 +401,57 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype))
 });
-app.post('/api/photos', requireAuth, upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'image required' });
-  db.prepare('INSERT INTO photos (file, caption, added_by, created) VALUES (?, ?, ?, ?)')
-    .run(req.file.filename, String((req.body || {}).caption || ''), req.role, new Date().toISOString());
-  res.json({ ok: true });
+// reverse geocode with sqlite cache + 1 req/s politeness for Nominatim
+let geoLast = 0;
+async function placeName(lat, lon) {
+  const key = lat.toFixed(3) + ',' + lon.toFixed(3);
+  const hit = db.prepare('SELECT name FROM geo_cache WHERE key = ?').get(key);
+  if (hit) return hit.name;
+  const wait = Math.max(0, geoLast + 1100 - Date.now());
+  if (wait) await new Promise(r => setTimeout(r, wait));
+  geoLast = Date.now();
+  try {
+    const j = await getJSON(`${GEO_BASE}/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`,
+      { 'User-Agent': NWS_UA }, 6000);
+    const a = j.address || {};
+    const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || '';
+    const region = a.state || a.country || '';
+    const name = [city, region].filter(Boolean).join(', ');
+    if (name) db.prepare('INSERT OR REPLACE INTO geo_cache (key, name) VALUES (?, ?)').run(key, name);
+    return name;
+  } catch (e) { return ''; }
+}
+function fmtTaken(d) {
+  try {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(d);
+  } catch (e) { return ''; }
+}
+app.post('/api/photos', requireAuth, upload.array('images', 30), async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) return res.status(400).json({ error: 'image required' });
+  const manual = String((req.body || {}).caption || '').trim();
+  const results = [];
+  for (const f of files) {
+    let taken = '', place = '', lat = null, lon = null;
+    try {
+      const ex = await exifr.parse(f.path, { gps: true });
+      if (ex) {
+        const dt = ex.DateTimeOriginal || ex.CreateDate;
+        if (dt instanceof Date && !isNaN(dt)) taken = fmtTaken(dt);
+        if (typeof ex.latitude === 'number' && typeof ex.longitude === 'number') {
+          lat = ex.latitude; lon = ex.longitude;
+          place = await placeName(lat, lon);
+        }
+      }
+    } catch (e) { /* no exif, fine */ }
+    // manual caption wins when uploading a single photo; otherwise auto place · date
+    const auto = [place, taken].filter(Boolean).join(' · ');
+    const caption = (files.length === 1 && manual) ? manual : auto;
+    db.prepare('INSERT INTO photos (file, caption, added_by, created, taken, place) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(f.filename, caption, req.role, new Date().toISOString(), taken, place);
+    results.push({ file: f.filename, caption });
+  }
+  res.json({ ok: true, count: results.length, results });
 });
 app.get('/api/photos', requireAuth, (req, res) => {
   res.json({ photos: db.prepare('SELECT * FROM photos ORDER BY id DESC').all() });
