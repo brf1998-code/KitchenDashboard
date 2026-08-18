@@ -29,15 +29,19 @@
     border-radius:99px; width:2.6rem; height:2.6rem; font-size:1.2rem; cursor:pointer; }
 
   main { display:grid; gap:.8rem; padding:.6rem 1.1rem 1.1rem;
-    grid-template-columns:1.25fr 1fr 1fr; grid-template-rows:auto 1fr;
+    grid-template-columns:1.2fr 1fr 1fr 1fr; grid-template-rows:auto 1fr;
     min-height:calc(100vh - 4.9rem);
-    grid-template-areas: "weekend weather mbta" "weekend chores workouts"; }
+    grid-template-areas: "weekend weather mbta photos" "weekend chores workouts photos"; }
+  @media (max-width:1150px) {
+    main { grid-template-columns:1.25fr 1fr 1fr; grid-template-areas:
+      "weekend weather mbta" "weekend chores workouts" "photos photos photos"; }
+  }
   @media (max-width:980px) {
     main { grid-template-columns:1fr 1fr; grid-template-areas:
-      "weekend weather" "mbta chores" "workouts workouts"; }
+      "weekend weather" "mbta chores" "workouts photos"; }
   }
   @media (max-width:640px) { main { grid-template-columns:1fr; grid-template-areas:
-      "weekend" "mbta" "weather" "chores" "workouts"; } }
+      "weekend" "mbta" "weather" "chores" "workouts" "photos"; } }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
     padding:.8rem .95rem; min-height:9rem; }
@@ -49,6 +53,7 @@
   #card-mbta    { grid-area:mbta; border-top:3px solid #DA291C; }
   #card-chores  { grid-area:chores; border-top:3px solid var(--green); }
   #card-workouts{ grid-area:workouts; border-top:3px solid var(--chb); }
+  #card-photos  { grid-area:photos; border-top:3px solid var(--mitdark); display:flex; flex-direction:column; }
 
   /* weekend */
   .wk-dates { font-size:1.25rem; }
@@ -118,6 +123,22 @@
   .wo-person .name { font-family:ui-monospace, Menlo, monospace; color:var(--soft); font-size:.8rem; }
   .wo-body { font-size:.98rem; }
 
+  /* photos */
+  .polaroid { flex:1; display:flex; flex-direction:column; background:#fff; border:1px solid var(--line);
+    box-shadow:0 3px 10px rgba(35,32,25,.12); padding:.55rem .55rem 0; border-radius:.2rem;
+    transform:rotate(var(--tilt, -1.2deg)); margin:.2rem .3rem .9rem; min-height:0; }
+  .polaroid .ph { flex:1; min-height:0; overflow:hidden; background:#f2ecdd; position:relative; }
+  .polaroid img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    opacity:0; transition:opacity 1.2s ease; }
+  .polaroid img.show { opacity:1; }
+  .polaroid .cap { text-align:center; font-style:italic; padding:.5rem .2rem .6rem; font-size:.95rem;
+    color:var(--soft); min-height:2.1rem; font-family:'Comic Sans MS', 'Segoe Print', Georgia, cursive; }
+  .ph-empty { flex:1; display:flex; align-items:center; justify-content:center; color:var(--soft);
+    font-style:italic; text-align:center; padding:1rem; }
+  /* quips */
+  #quip { font-size:.92rem; color:var(--soft); font-style:italic; max-width:24rem;
+    text-align:center; line-height:1.25; transition:opacity .8s ease; }
+
   /* feedback fab + modals */
   .fab { position:fixed; right:1rem; bottom:1rem; background:var(--mit); color:#fff; border:none;
     border-radius:99px; padding:.75rem 1.2rem; font-family:inherit; font-size:1rem; cursor:pointer;
@@ -157,6 +178,8 @@
   <div id="clock">--:--</div>
   <div id="date"></div>
   <div class="spacer"></div>
+  <div id="quip"></div>
+  <div class="spacer"></div>
   <div id="wxnow"></div>
   <button class="gear" id="gear" title="Settings">&#9881;</button>
 </header>
@@ -166,6 +189,8 @@
   <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
   <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
   <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
+  <section class="card" id="card-photos"><h2>Us</h2><div class="polaroid" id="polaroid">
+    <div class="ph" id="ph"></div><div class="cap" id="ph-cap"></div></div></section>
 </main>
 <button class="fab" id="fab">&#10022; Idea</button>
 <div class="offline" id="offline">Reconnecting…</div>
@@ -184,7 +209,14 @@
 </div></div>
 
 <div class="modal-bg" id="cfg-bg"><div class="modal">
-  <h2>Chore schedule</h2>
+  <h2>Photos</h2>
+  <div class="row">
+    <input type="file" id="np-file" accept="image/*" style="max-width:14rem">
+    <input id="np-cap" placeholder="Caption (optional)" style="flex:1; min-width:8rem; font-family:inherit; font-size:.9rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:.4rem;">
+    <button class="btn" id="np-add">Upload</button>
+  </div>
+  <div id="ph-list"></div>
+  <h2 style="margin-top:1.1rem">Chore schedule</h2>
   <div id="cfg-list"></div>
   <div class="cfg-row" style="border-top:2px solid var(--line); margin-top:.4rem">
     <input id="nc-title" placeholder="New chore" style="flex:1; min-width:8rem">
@@ -327,6 +359,79 @@ function renderWorkouts() {
     + `<div style="margin-top:.4rem"><a class="plain" href="${esc(r.data.url)}">Open workout planner →</a></div>`;
 }
 
+// ---------- photos ----------
+let phOrder = [], phIdx = -1, phKnown = '';
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function syncPhotos() {
+  const ph = D.photos || [];
+  const key = ph.map(p => p.id).join(',');
+  if (key !== phKnown) { phKnown = key; phOrder = shuffle(ph.slice()); phIdx = -1; nextPhoto(); }
+  if (!ph.length) {
+    $('ph').innerHTML = '<div class="ph-empty">No photos yet.<br>Open the gear on your phone and drop one in.</div>';
+    $('ph-cap').textContent = '';
+  }
+}
+function nextPhoto() {
+  if (!phOrder.length) return;
+  phIdx = (phIdx + 1) % phOrder.length;
+  const p = phOrder[phIdx];
+  const holder = $('ph');
+  const img = document.createElement('img');
+  img.src = '/img/photos/' + encodeURIComponent(p.file);
+  img.onload = () => {
+    holder.appendChild(img);
+    requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('show')));
+    setTimeout(() => { holder.querySelectorAll('img').forEach(o => { if (o !== img) o.remove(); }); }, 1500);
+    $('ph-cap').textContent = p.caption || '';
+    $('polaroid').style.setProperty('--tilt', ((phIdx % 5) - 2) * 0.9 + 'deg');
+  };
+  img.onerror = () => img.remove();
+}
+setInterval(nextPhoto, 40 * 1000);
+
+// ---------- quips ----------
+const QUIPS = [
+  'Walk tonight?',
+  'The Red Line is doing its best.',
+  'Storrow Drive: still not for trucks.',
+  'Charles River status: scenic.',
+  'Fed by the 1 bus, powered by Dunkin’.',
+  'Kendall says hi.',
+  'Somewhere a pager just went off. Sorry, Emma.',
+  'Psets don’t do themselves. Unfortunately.',
+  'Wicked good day for it.',
+  'Beans: baked. Town: home of them.',
+  'Central Square: never boring.',
+  'Two PINs, one kitchen.',
+];
+let quipIdx = Math.floor(Math.random() * QUIPS.length);
+function dynamicQuips() {
+  const out = [];
+  const h = new Date().getHours();
+  if (h < 10) out.push('Good morning, you two.');
+  if (h >= 22) out.push('Why are we in the kitchen at this hour?');
+  try {
+    const w = D.weekend.data.nextPlanned || (['planning','planned'].includes(D.weekend.data.next?.status) ? D.weekend.data.next : null);
+    if (w) {
+      const days = Math.max(0, Math.ceil((new Date(w.start + 'T00:00:00') - Date.now()) / 86400000));
+      const name = w.title || w.destination;
+      if (name && days > 0) out.push(`${days} day${days === 1 ? '' : 's'} until ${name}.`);
+    }
+    const nx = D.weekend.data.next;
+    if (nx && nx.av?.b?.state === 'free' && nx.av?.e?.state === 'free') out.push('Both free this weekend ✦');
+  } catch (e) {}
+  return out;
+}
+function tickQuip() {
+  const dyn = dynamicQuips();
+  const pool = dyn.length && Math.random() < 0.5 ? dyn : QUIPS;
+  const q = pool === QUIPS ? QUIPS[(quipIdx = (quipIdx + 1) % QUIPS.length)] : dyn[Math.floor(Math.random() * dyn.length)];
+  const el = $('quip');
+  el.style.opacity = 0;
+  setTimeout(() => { el.textContent = q; el.style.opacity = 1; }, 800);
+}
+setInterval(tickQuip, 30 * 1000);
+
 // ---------- load loop ----------
 async function load() {
   try {
@@ -336,7 +441,8 @@ async function load() {
     if (!fbPerson) fbPerson = D.role;
     $('offline').classList.remove('on');
     renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
-    setFbWho();
+    syncPhotos(); setFbWho();
+    if (!$('quip').textContent) tickQuip();
   } catch (e) { $('offline').classList.add('on'); }
 }
 load();
@@ -375,7 +481,34 @@ $('fb-send').onclick = async () => {
 };
 
 // ---------- settings (chores) ----------
-$('gear').onclick = () => { $('cfg-bg').classList.add('on'); loadCfg(); };
+$('gear').onclick = () => { $('cfg-bg').classList.add('on'); loadCfg(); loadPhotoCfg(); };
+async function loadPhotoCfg() {
+  const j = await (await fetch('/api/photos')).json();
+  $('ph-list').innerHTML = j.photos.map(p => `
+    <div class="cfg-row">
+      <img src="/img/photos/${encodeURIComponent(p.file)}" style="width:3.2rem; height:2.4rem; object-fit:cover; border-radius:.3rem">
+      <span style="flex:1; font-style:italic; color:var(--soft)">${esc(p.caption || 'no caption')}</span>
+      <span class="mono" style="color:var(--soft); font-size:.72rem">${(p.added_by || '').toUpperCase()}</span>
+      <button class="del" data-ph="${p.id}">&#10005;</button>
+    </div>`).join('') || '<div class="muted" style="padding:.4rem 0">No photos yet.</div>';
+  $('ph-list').querySelectorAll('.del').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this photo?')) return;
+    await fetch(`/api/photos/${b.dataset.ph}`, { method:'DELETE' });
+    loadPhotoCfg(); load();
+  });
+}
+$('np-add').onclick = async () => {
+  const f = $('np-file').files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('image', f);
+  fd.append('caption', $('np-cap').value.trim());
+  $('np-add').textContent = '…';
+  await fetch('/api/photos', { method:'POST', body: fd });
+  $('np-add').textContent = 'Upload';
+  $('np-file').value = ''; $('np-cap').value = '';
+  loadPhotoCfg(); load();
+};
 async function loadCfg() {
   const j = await (await fetch('/api/chores')).json();
   $('cfg-list').innerHTML = j.chores.map(c => `

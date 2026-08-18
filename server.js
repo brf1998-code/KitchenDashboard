@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const multer = require('multer');
 const { DatabaseSync } = require('node:sqlite');
 
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,7 @@ const MBTA_FEEDS = [
 ];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(path.join(DATA_DIR, 'photos'), { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, 'dashboard.db'));
 db.exec(`
   PRAGMA journal_mode = WAL;
@@ -54,6 +56,10 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     person TEXT, text TEXT, status TEXT DEFAULT 'new', created TEXT
+  );
+  CREATE TABLE IF NOT EXISTS photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file TEXT, caption TEXT DEFAULT '', added_by TEXT, created TEXT
   );
 `);
 
@@ -300,6 +306,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     role: req.role, serverTime: now.toISOString(), today,
     weather, mbta, weekend, workouts,
     chores: { today: choresFor(today, dow), week },
+    photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC LIMIT 60').all(),
     feedbackOpen: db.prepare("SELECT COUNT(*) c FROM feedback WHERE status='new'").get().c,
   });
 });
@@ -338,6 +345,43 @@ app.post('/api/chores/:id/toggle', requireAuth, (req, res) => {
 });
 app.get('/api/chores', requireAuth, (req, res) => {
   res.json({ chores: db.prepare('SELECT * FROM chores WHERE active = 1 ORDER BY pos, id').all() });
+});
+
+// photos
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: path.join(DATA_DIR, 'photos'),
+    filename: (req, file, cb) => {
+      const ext = (path.extname(file.originalname) || '.jpg').toLowerCase().slice(0, 6);
+      cb(null, crypto.randomBytes(8).toString('hex') + ext);
+    }
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype))
+});
+app.post('/api/photos', requireAuth, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'image required' });
+  db.prepare('INSERT INTO photos (file, caption, added_by, created) VALUES (?, ?, ?, ?)')
+    .run(req.file.filename, String((req.body || {}).caption || ''), req.role, new Date().toISOString());
+  res.json({ ok: true });
+});
+app.get('/api/photos', requireAuth, (req, res) => {
+  res.json({ photos: db.prepare('SELECT * FROM photos ORDER BY id DESC').all() });
+});
+app.patch('/api/photos/:id', requireAuth, (req, res) => {
+  if ('caption' in (req.body || {}))
+    db.prepare('UPDATE photos SET caption = ? WHERE id = ?').run(String(req.body.caption), req.params.id);
+  res.json({ ok: true });
+});
+app.delete('/api/photos/:id', requireAuth, (req, res) => {
+  const p = db.prepare('SELECT file FROM photos WHERE id = ?').get(req.params.id);
+  if (p && p.file) fs.rm(path.join(DATA_DIR, 'photos', p.file), () => {});
+  db.prepare('DELETE FROM photos WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+app.get('/img/photos/:file', requireAuth, (req, res) => {
+  const f = path.basename(req.params.file);
+  res.sendFile(path.join(DATA_DIR, 'photos', f), err => { if (err) res.status(404).end(); });
 });
 
 // feedback
