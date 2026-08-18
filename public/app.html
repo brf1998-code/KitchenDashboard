@@ -168,12 +168,12 @@
   .wo-items { font-size:.92rem; }
 
   /* photos */
-  #card-photos { justify-content:center; }
+  #card-photos { justify-content:space-evenly; }
   .polaroid { display:flex; flex-direction:column; background:#fff; border:1px solid var(--line);
-    box-shadow:0 3px 10px rgba(35,32,25,.12); padding:.55rem .55rem 0; border-radius:.2rem;
-    transform:rotate(var(--tilt, -1.2deg)); margin:.2rem .3rem .9rem; }
-  /* the frame takes each photo's own aspect ratio, capped so portraits still fit */
-  .polaroid .ph { width:100%; aspect-ratio:var(--ar, 4 / 3); max-height:calc(100vh - 15rem);
+    box-shadow:0 3px 10px rgba(35,32,25,.12); padding:.5rem .5rem 0; border-radius:.2rem;
+    transform:rotate(var(--tilt, -1.2deg)); margin:.2rem .35rem .6rem; }
+  /* two stacked postcards: each frame takes its photo's aspect, capped to half the tile */
+  .polaroid .ph { width:100%; aspect-ratio:var(--ar, 3 / 2); max-height:calc(50vh - 11rem);
     overflow:hidden; background:#efe8d8; position:relative; }
   .polaroid img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
     opacity:0; transition:opacity 1.2s ease; }
@@ -239,8 +239,10 @@
   <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
   <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
   <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
-  <section class="card" id="card-photos"><h2>Us</h2><div class="polaroid" id="polaroid">
-    <div class="ph" id="ph"></div><div class="cap" id="ph-cap"></div></div></section>
+  <section class="card" id="card-photos"><h2>Us</h2>
+    <div class="polaroid" id="polaroid0"><div class="ph" id="ph0"></div><div class="cap" id="cap0"></div></div>
+    <div class="polaroid" id="polaroid1"><div class="ph" id="ph1"></div><div class="cap" id="cap1"></div></div>
+  </section>
 </main>
 <button class="fab" id="fab">&#10022; Idea</button>
 <div class="offline" id="offline">Reconnecting…</div>
@@ -479,23 +481,20 @@ function renderWorkouts() {
   el.innerHTML = body + link(r.data.url);
 }
 
-// ---------- photos ----------
-let phOrder = [], phIdx = -1, phKnown = '';
-function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-function syncPhotos() {
-  const ph = D.photos || [];
-  const key = ph.map(p => p.id).join(',');
-  if (key !== phKnown) { phKnown = key; phOrder = shuffle(ph.slice()); phIdx = -1; nextPhoto(); }
-  if (!ph.length) {
-    $('ph').innerHTML = '<div class="ph-empty">No photos yet.<br>Open the gear on your phone and drop one in.</div>';
-    $('ph-cap').textContent = '';
-  }
+// ---------- photos: two stacked postcards, random cycling ----------
+let phPool = [], phKnown = '', phShown = [null, null], phSlot = 0;
+function randomPhoto() {
+  if (!phPool.length) return null;
+  const shownIds = phShown.filter(Boolean).map(p => p.id);
+  const candidates = phPool.filter(p => !shownIds.includes(p.id));
+  const pick = (candidates.length ? candidates : phPool);
+  return pick[Math.floor(Math.random() * pick.length)];
 }
-function nextPhoto() {
-  if (!phOrder.length) return;
-  phIdx = (phIdx + 1) % phOrder.length;
-  const p = phOrder[phIdx];
-  const holder = $('ph');
+function setSlot(i) {
+  const p = randomPhoto();
+  if (!p) return;
+  phShown[i] = p;
+  const holder = $('ph' + i);
   const img = document.createElement('img');
   img.src = '/img/photos/' + encodeURIComponent(p.file);
   img.onload = () => {
@@ -503,12 +502,29 @@ function nextPhoto() {
     holder.appendChild(img);
     requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('show')));
     setTimeout(() => { holder.querySelectorAll('img').forEach(o => { if (o !== img) o.remove(); }); }, 1500);
-    $('ph-cap').textContent = p.caption || '';
-    $('polaroid').style.setProperty('--tilt', ((phIdx % 5) - 2) * 0.9 + 'deg');
+    $('cap' + i).textContent = p.caption || '';
+    $('polaroid' + i).style.setProperty('--tilt',
+      (i === 0 ? -1 : 1) * (0.7 + Math.random() * 1.1) + 'deg');
   };
   img.onerror = () => img.remove();
 }
-setInterval(nextPhoto, 40 * 1000);
+function syncPhotos() {
+  const ph = D.photos || [];
+  const key = ph.map(p => p.id).join(',');
+  if (key !== phKnown) {
+    phKnown = key; phPool = ph.slice(); phShown = [null, null];
+    if (phPool.length) { setSlot(0); if (phPool.length > 1) setSlot(1); }
+  }
+  $('polaroid1').style.display = phPool.length > 1 ? '' : 'none';
+  if (!ph.length) {
+    $('ph0').innerHTML = '<div class="ph-empty">No photos yet.<br>Open the gear on your phone and drop one in.</div>';
+    $('cap0').textContent = '';
+  }
+}
+// swap one postcard at a time, alternating top/bottom, so both aren't jumping at once
+setInterval(() => {
+  if (phPool.length > 2) { setSlot(phSlot); phSlot = 1 - phSlot; }
+}, 30 * 1000);
 
 // ---------- quips ----------
 const QUIPS = [

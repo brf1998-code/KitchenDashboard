@@ -324,6 +324,11 @@ async function fetchWorkouts() {
 // ---------- chores ----------
 function choreAssignee(c, dateStr) {
   if (c.assignee !== 'alt') return c.assignee;
+  // daily chores swap person every day; weekly chores swap by week
+  if (c.cadence === 'daily') {
+    const dayNum = Math.floor(new Date(dateStr + 'T12:00:00Z').getTime() / 86400000);
+    return (dayNum + c.id) % 2 === 0 ? 'b' : 'e';
+  }
   return (isoWeek(dateStr) + c.id) % 2 === 0 ? 'b' : 'e';
 }
 function choresFor(dateStr, dow, isToday = false) {
