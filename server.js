@@ -272,16 +272,52 @@ async function fetchWeekend() {
   });
 }
 
-// ---------- WorkoutPlanning (best-effort; endpoint shape may evolve) ----------
+// ---------- WorkoutPlanning ----------
+// Plans are stored as /api/wkplan-<mondayISO> (default profile), with optional
+// suffix variants ("...b") and per-profile keys ("wkplan-emma-<monday>").
+const DOWS3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function mondayISO() {
+  const today = localISO(), dow = localDow();
+  const d = new Date(today + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - ((dow + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+function pickToday(plan) {
+  const days = plan && plan.days;
+  if (!days) return null;
+  const today = localISO(), dow = localDow();
+  const dstr = `${Number(today.slice(5, 7))}/${Number(today.slice(8, 10))}`; // "8/18"
+  const list = Array.isArray(days) ? days : Object.values(days);
+  const hit = list.find(d => d && (d.date === dstr || d.d === DOWS3[dow]));
+  if (!hit) return null;
+  const items = (hit.items || []).map(i => {
+    const sets = i.s && i.r ? ` ${i.s}×${i.r}` : '';
+    return (i.n || '') + sets;
+  }).filter(Boolean);
+  return { name: hit.name || '', type: hit.type || '', dur: hit.dur || '', block: hit.block || '',
+    items: items.slice(0, 3), more: Math.max(0, items.length - 3) };
+}
 async function fetchWorkouts() {
   return cached('workouts', 10 * 60 * 1000, async () => {
-    const today = localISO();
-    let days = {};
-    try {
-      const j = await getJSON(`${WORKOUT_URL}/api/state?start=${today}&end=${today}`);
-      days = j.days || {};
-    } catch (e) { /* leave empty */ }
-    return { today: days[today] || null, raw: Object.keys(days).length ? days : null, url: WORKOUT_URL };
+    const mon = mondayISO();
+    const people = [
+      { who: 'Brendan', keys: [`wkplan-${mon}`, `wkplan-${mon}b`, `wkplan-brendan-${mon}`] },
+      { who: 'Emma', keys: [`wkplan-emma-${mon}`, `wkplan-e-${mon}`] },
+    ];
+    const plans = [];
+    for (const p of people) {
+      for (const key of p.keys) {
+        try {
+          const j = await getJSON(`${WORKOUT_URL}/api/${encodeURIComponent(key)}`);
+          const hasPlan = j && (Array.isArray(j.days) ? j.days.length : Object.keys(j.days || {}).length);
+          if (hasPlan) {
+            plans.push({ who: p.who, weekTitle: j.title || '', today: pickToday(j) });
+            break;
+          }
+        } catch (e) { /* try next key */ }
+      }
+    }
+    return { plans, url: WORKOUT_URL };
   });
 }
 

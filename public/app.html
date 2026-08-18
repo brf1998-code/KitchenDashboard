@@ -44,7 +44,7 @@
       "weekend" "mbta" "weather" "chores" "workouts" "photos"; } }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
-    padding:.8rem .95rem; min-height:9rem; }
+    padding:.8rem .95rem; min-height:9rem; overflow:hidden; }
   .card h2 { margin:0 0 .5rem; font-weight:normal; font-size:.95rem; color:var(--soft);
     letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:baseline; gap:.5rem; }
   .card h2 .accent { width:.55rem; height:.55rem; border-radius:2px; display:inline-block; }
@@ -89,16 +89,20 @@
   .muted { color:var(--soft); font-size:.92rem; }
   a.plain { color:var(--chb); }
 
-  /* weather */
-  .wx-days { margin:.2rem 0 .5rem; }
-  .wx-day { display:flex; gap:.6rem; align-items:baseline; padding:.16rem 0; font-size:.95rem; }
-  .wx-day .n { min-width:5.4rem; color:var(--soft); }
-  .wx-day .tp { font-family:ui-monospace, Menlo, monospace; min-width:2.6rem; }
-  .wx-day .sh { flex:1; font-style:italic; color:var(--soft); font-size:.88rem; }
-  .wx-strip { display:flex; gap:.25rem; overflow-x:hidden; margin-top:.4rem; }
-  .wx-h { flex:1; text-align:center; padding:.3rem .1rem; border-radius:.4rem; background:#f7f1e3; min-width:2.1rem; }
-  .wx-h .hh { font-size:.68rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
-  .wx-h .tt { font-size:.95rem; }
+  /* weather — spread over the whole tile instead of cramming the top */
+  #card-weather { display:flex; flex-direction:column; }
+  #weather { flex:1; display:flex; flex-direction:column; }
+  .wx-days { flex:1; display:flex; flex-direction:column; justify-content:space-evenly; margin:.2rem 0 .5rem; }
+  .wx-day { display:flex; gap:.7rem; align-items:baseline; padding:.28rem 0; font-size:1.05rem;
+    border-bottom:1px dashed var(--line); }
+  .wx-day:last-child { border-bottom:none; }
+  .wx-day .n { min-width:7.6rem; color:var(--soft); }
+  .wx-day .tp { font-family:ui-monospace, Menlo, monospace; min-width:2.8rem; font-size:1.15rem; }
+  .wx-day .sh { flex:1; font-style:italic; color:var(--soft); font-size:.92rem; }
+  .wx-strip { display:flex; gap:.25rem; overflow-x:hidden; margin-top:auto; }
+  .wx-h { flex:1; text-align:center; padding:.42rem .1rem; border-radius:.4rem; background:#f7f1e3; min-width:2.1rem; }
+  .wx-h .hh { font-size:.7rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
+  .wx-h .tt { font-size:1.05rem; }
   .wx-h .pp { font-size:.66rem; color:var(--chb); font-family:ui-monospace, Menlo, monospace; min-height:.9em; }
 
   /* mbta */
@@ -149,12 +153,19 @@
   .overdue { font-size:.68rem; color:var(--busy); font-family:ui-monospace, Menlo, monospace;
     border:1px solid #e0c4bd; background:#f3e3df; border-radius:99px; padding:.08rem .45rem; }
   .oncechip { font-size:.68rem; color:var(--gold); font-family:ui-monospace, Menlo, monospace;
-    border:1px solid #e8cf8e; background:#fdf3d7; border-radius:99px; padding:.08rem .45rem; }
+    border:1px solid #e8cf8e; background:#fdf3d7; border-radius:99px; padding:.08rem .45rem; white-space:nowrap; }
+  .ch-row.up { padding:.26rem 0; }
+  .ch-row.up .ch-title { font-size:.92rem; }
+  .ch-row.up .mark { width:1.7rem; height:1.7rem; }
+  .ch-day { font-size:.74rem; color:var(--soft); min-width:2.2rem; }
 
   /* workouts */
-  .wo-person { margin:.3rem 0 .5rem; }
+  .wo-person { margin:.3rem 0 .8rem; padding-bottom:.5rem; border-bottom:1px dashed var(--line); }
+  .wo-person:last-of-type { border-bottom:none; }
   .wo-person .name { font-family:ui-monospace, Menlo, monospace; color:var(--soft); font-size:.8rem; }
-  .wo-body { font-size:.98rem; }
+  .wo-title { font-size:1.05rem; color:var(--chb); font-style:italic; }
+  .wo-meta { font-size:.82rem; color:var(--soft); margin:.1rem 0 .2rem; }
+  .wo-items { font-size:.92rem; }
 
   /* photos */
   #card-photos { justify-content:center; }
@@ -365,7 +376,7 @@ function renderWeekend() {
   if ((pinned || []).length) h += `<div class="subhead">&#9733; Pinned</div>` +
     pinned.map(w => compactRow(w, true)).join('');
   if ((upcoming || []).length) h += `<div class="subhead">Coming up</div>` +
-    upcoming.slice(0, 5).map(w => compactRow(w, false)).join('');
+    upcoming.slice(0, 8).map(w => compactRow(w, false)).join('');
   h += `<div style="margin-top:.7rem"><a class="plain" href="${esc(url)}/weekends">Open the weekend planner →</a></div>`;
   el.innerHTML = h;
 }
@@ -425,6 +436,23 @@ function renderChores() {
       <span class="mark ${c.by.e ? 'on-e' : ''} ${c.assignee === 'e' || c.assignee === 'both' ? 'want-e' : ''}"
         data-ch="${c.id}" data-p="e" data-d="${c.markDate}">E</span>
     </div>`).join('');
+  // upcoming: the next few days' chores so you can get ahead
+  const up = [];
+  for (const day of (D.chores.week || []).slice(1)) {
+    for (const c of day.chores) up.push({ ...c, date: day.date, dow: day.dow });
+    if (up.length >= 6) break;
+  }
+  if (up.length) {
+    el.innerHTML += `<div class="subhead">Coming up</div>` + up.slice(0, 6).map(c => `
+      <div class="ch-row up ${c.done ? 'done' : ''}">
+        <span class="ch-day mono">${DOWS[c.dow]}</span>
+        <div class="ch-title">${esc(c.title)}${c.cadence === 'once' ? ' <span class="oncechip">one-time</span>' : ''}</div>
+        <span class="mark ${c.by.b ? 'on-b' : ''} ${c.assignee === 'b' || c.assignee === 'both' ? 'want-b' : ''}"
+          data-ch="${c.id}" data-p="b" data-d="${c.date}">B</span>
+        <span class="mark ${c.by.e ? 'on-e' : ''} ${c.assignee === 'e' || c.assignee === 'both' ? 'want-e' : ''}"
+          data-ch="${c.id}" data-p="e" data-d="${c.date}">E</span>
+      </div>`).join('');
+  }
   el.querySelectorAll('.mark').forEach(m => m.onclick = async (e) => {
     e.stopPropagation();
     await fetch(`/api/chores/${m.dataset.ch}/toggle`, { method:'POST',
@@ -435,20 +463,20 @@ function renderChores() {
 }
 function renderWorkouts() {
   const el = $('workouts'), r = D.workouts;
-  if (!r.ok || (!r.data.today && !r.data.raw)) {
-    return el.innerHTML = `<span class="muted">No plan found for today.</span>
-      <div style="margin-top:.5rem"><a class="plain" href="${r.ok ? esc(r.data.url) : '#'}">Open workout planner →</a></div>`;
+  const link = url => `<div style="margin-top:.5rem"><a class="plain" href="${esc(url)}">Open workout planner →</a></div>`;
+  if (!r.ok || !(r.data.plans || []).length) {
+    return el.innerHTML = `<span class="muted">No plan found for this week.</span>` + link(r.ok ? r.data.url : '#');
   }
-  const t = r.data.today;
-  let body = '';
-  if (t && typeof t === 'object') {
-    for (const [k, v] of Object.entries(t)) {
-      body += `<div class="wo-person"><div class="name">${esc(k)}</div>
-        <div class="wo-body">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</div></div>`;
-    }
-  }
-  el.innerHTML = (body || '<span class="muted">Rest day.</span>')
-    + `<div style="margin-top:.4rem"><a class="plain" href="${esc(r.data.url)}">Open workout planner →</a></div>`;
+  const body = r.data.plans.map(p => {
+    const t = p.today;
+    const inner = t
+      ? `<div class="wo-title">${esc(t.name)}</div>
+         <div class="wo-meta">${esc([t.dur, t.block].filter(Boolean).join(' · '))}</div>
+         ${t.items.length ? `<div class="wo-items">${esc(t.items.join(' · '))}${t.more ? ` <span class="muted">+${t.more} more</span>` : ''}</div>` : ''}`
+      : `<div class="muted" style="font-style:italic">Rest day.</div>`;
+    return `<div class="wo-person"><div class="name">${esc(p.who)}</div>${inner}</div>`;
+  }).join('');
+  el.innerHTML = body + link(r.data.url);
 }
 
 // ---------- photos ----------

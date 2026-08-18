@@ -70,11 +70,22 @@ app.get('/daily', (req, res) => res.json({ properties: { periods: [
 ] } }));
 
 // --- WorkoutPlanning (mounted at /wo) ---
-app.get('/wo/api/state', (req, res) => res.json({ days: {
-  [new Date().toISOString().slice(0, 10)]: {
-    Brendan: 'Push day — bench 4x6, OHP 3x8, dips, 20 min zone 2',
-    Emma: 'Tempo run 4 mi + core',
-  } } }));
+const DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const todayD = new Date();
+app.get('/wo/api/:weekId', (req, res) => {
+  const id = req.params.weekId;
+  if (!id.startsWith('wkplan-')) return res.json({ days: {} });
+  if (id.includes('emma')) return res.json({ weekId: id, title: 'Week of Aug 17–23', days: [
+    { d: DOW3[todayD.getDay()], name: 'Tempo Run + Core', type: 'run', dur: '~45 min',
+      block: 'after shift', items: [{ n: 'Tempo run', r: '4 mi', s: '' }, { n: 'Plank circuit', r: '45s', s: 3 }] },
+  ] });
+  return res.json({ weekId: id, title: 'Week of Aug 17–23', days: [
+    { d: DOW3[todayD.getDay()], date: `${todayD.getMonth()+1}/${todayD.getDate()}`,
+      name: 'Lower — Squat Calibration', type: 'lift', dur: '~55 min work', block: '5:00–7:00 AM',
+      items: [{ n: 'Back Squat', r: 5, s: 4 }, { n: 'Romanian Deadlift', r: 8, s: 3 },
+        { n: 'Split Squat', r: 10, s: 3 }, { n: 'Calf Raise', r: 12, s: 3 }] },
+  ] });
+});
 
 // --- Nominatim reverse geocode ---
 app.get('/reverse', (req, res) => res.json({
