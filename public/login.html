@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Kitchen — B + E</title>
+<style>
+  body { margin:0; background:#faf6ef; color:#232019; font-family:Georgia, 'Times New Roman', serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  .box { text-align:center; padding:2rem; }
+  h1 { font-weight:normal; font-size:1.6rem; }
+  h1 .heart { color:#A31F34; }
+  p { color:#6b6353; }
+  input { font-family:inherit; font-size:1.6rem; text-align:center; letter-spacing:.4em;
+    width:9rem; padding:.55rem .6rem; border:1px solid #e5ddcc; border-radius:.5rem; background:#fffdf8; }
+  button { display:block; margin:1rem auto 0; font-family:inherit; font-size:1.05rem;
+    background:#A31F34; color:#fff; border:none; border-radius:.5rem; padding:.55rem 1.6rem; cursor:pointer; }
+  .err { color:#8c2b1e; min-height:1.2em; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>B <span class="heart">&hearts;</span> E &mdash; Kitchen</h1>
+  <p>Enter your PIN</p>
+  <form id="f">
+    <input id="pin" inputmode="numeric" autocomplete="off" autofocus>
+    <div class="err" id="err"></div>
+    <button>Enter</button>
+  </form>
+</div>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ pin: document.getElementById('pin').value }) });
+  if (r.ok) location.href = '/dash';
+  else document.getElementById('err').textContent = 'Not quite.';
+};
+</script>
+</body>
+</html>

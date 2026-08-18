@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>B + E — Kitchen</title>
+<style>
+  :root {
+    --paper:#faf6ef; --card:#fffdf8; --line:#e5ddcc; --ink:#232019; --soft:#6b6353;
+    --mit:#A31F34; --mitdark:#750014; --chb:#0D5CA8; --green:#2C5B2F; --gold:#b8860b;
+    --busy:#8c2b1e;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:Georgia, 'Times New Roman', serif; overflow-x:hidden; }
+  .mono { font-family:ui-monospace, Menlo, Consolas, monospace; }
+
+  header { display:flex; align-items:baseline; gap:1rem; padding:.7rem 1.1rem .3rem; }
+  #clock { font-size:2.6rem; letter-spacing:.02em; }
+  #clock .ampm { font-size:1.1rem; color:var(--soft); }
+  #date { font-size:1.15rem; color:var(--soft); font-style:italic; }
+  header .spacer { flex:1; }
+  #wxnow { font-size:1.25rem; }
+  #wxnow .t { font-size:1.6rem; }
+  #wxnow .s { color:var(--soft); font-size:.95rem; font-style:italic; }
+  .gear { border:1px solid var(--line); background:var(--card); color:var(--soft);
+    border-radius:99px; width:2.6rem; height:2.6rem; font-size:1.2rem; cursor:pointer; }
+
+  main { display:grid; gap:.8rem; padding:.6rem 1.1rem 1.1rem;
+    grid-template-columns:1.25fr 1fr 1fr; grid-template-rows:auto 1fr;
+    min-height:calc(100vh - 4.9rem);
+    grid-template-areas: "weekend weather mbta" "weekend chores workouts"; }
+  @media (max-width:980px) {
+    main { grid-template-columns:1fr 1fr; grid-template-areas:
+      "weekend weather" "mbta chores" "workouts workouts"; }
+  }
+  @media (max-width:640px) { main { grid-template-columns:1fr; grid-template-areas:
+      "weekend" "mbta" "weather" "chores" "workouts"; } }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
+    padding:.8rem .95rem; min-height:9rem; }
+  .card h2 { margin:0 0 .5rem; font-weight:normal; font-size:.95rem; color:var(--soft);
+    letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:baseline; gap:.5rem; }
+  .card h2 .accent { width:.55rem; height:.55rem; border-radius:2px; display:inline-block; }
+  #card-weekend { grid-area:weekend; border-top:3px solid var(--mit); }
+  #card-weather { grid-area:weather; border-top:3px solid var(--gold); }
+  #card-mbta    { grid-area:mbta; border-top:3px solid #DA291C; }
+  #card-chores  { grid-area:chores; border-top:3px solid var(--green); }
+  #card-workouts{ grid-area:workouts; border-top:3px solid var(--chb); }
+
+  /* weekend */
+  .wk-dates { font-size:1.25rem; }
+  .wk-title { color:var(--chb); font-style:italic; font-size:1.15rem; }
+  .pill { font-size:.72rem; padding:.14rem .6rem; border-radius:99px; border:1px solid var(--line);
+    color:var(--soft); white-space:nowrap; font-family:ui-monospace, Menlo, monospace; }
+  .pill.planned { background:var(--green); color:#fff; border-color:var(--green); }
+  .pill.planning { background:#e6e6f4; color:#01017A; border-color:#c9c9e8; }
+  .pill.open { background:#f2ecdd; }
+  .pill.holiday { background:#f6eeda; color:#7a5c14; border-color:#e4d3a5; }
+  .avline { margin:.45rem 0 .2rem; font-size:.98rem; }
+  .avline .name { display:inline-block; width:1.3rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
+  .st-free { color:var(--green); } .st-busy { color:var(--busy); } .st-unknown { color:var(--soft); }
+  .wk-items { margin:.5rem 0 0; padding:0; list-style:none; }
+  .wk-items li { padding:.18rem 0; font-size:.95rem; display:flex; gap:.5rem; align-items:baseline; }
+  .wk-items .t { font-family:ui-monospace, Menlo, monospace; font-size:.75rem; color:var(--soft); min-width:3.6rem; }
+  .wk-items li.done { text-decoration:line-through; color:var(--soft); }
+  .subhead { margin:.9rem 0 .3rem; font-size:.8rem; color:var(--soft); letter-spacing:.05em; text-transform:uppercase;
+    border-top:1px solid var(--line); padding-top:.6rem; }
+  .muted { color:var(--soft); font-size:.92rem; }
+  a.plain { color:var(--chb); }
+
+  /* weather */
+  .wx-days { margin:.2rem 0 .5rem; }
+  .wx-day { display:flex; gap:.6rem; align-items:baseline; padding:.16rem 0; font-size:.95rem; }
+  .wx-day .n { min-width:5.4rem; color:var(--soft); }
+  .wx-day .tp { font-family:ui-monospace, Menlo, monospace; min-width:2.6rem; }
+  .wx-day .sh { flex:1; font-style:italic; color:var(--soft); font-size:.88rem; }
+  .wx-strip { display:flex; gap:.25rem; overflow-x:hidden; margin-top:.4rem; }
+  .wx-h { flex:1; text-align:center; padding:.3rem .1rem; border-radius:.4rem; background:#f7f1e3; min-width:2.1rem; }
+  .wx-h .hh { font-size:.68rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
+  .wx-h .tt { font-size:.95rem; }
+  .wx-h .pp { font-size:.66rem; color:var(--chb); font-family:ui-monospace, Menlo, monospace; min-height:.9em; }
+
+  /* mbta */
+  .mb-row { display:flex; align-items:center; gap:.6rem; padding:.42rem 0; border-bottom:1px dashed var(--line); }
+  .mb-row:last-child { border-bottom:none; }
+  .badge { min-width:2.2rem; height:2.2rem; border-radius:.45rem; color:#fff; display:flex;
+    align-items:center; justify-content:center; font-family:ui-monospace, Menlo, monospace;
+    font-weight:bold; font-size:1rem; flex:0 0 auto; }
+  .badge.bus { color:#232019; }
+  .mb-label { font-size:.86rem; line-height:1.25; flex:1; }
+  .mb-mins { display:flex; gap:.3rem; }
+  .mb-min { font-family:ui-monospace, Menlo, monospace; background:#f2ecdd; border-radius:.4rem;
+    padding:.22rem .45rem; font-size:.98rem; white-space:nowrap; }
+  .mb-min b { font-size:1.05rem; }
+  .mb-none { color:var(--soft); font-style:italic; font-size:.85rem; }
+  .sched-note { font-size:.66rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
+
+  /* chores */
+  .ch-row { display:flex; align-items:center; gap:.55rem; padding:.34rem 0; border-bottom:1px dashed var(--line);
+    cursor:pointer; }
+  .ch-row:last-child { border-bottom:none; }
+  .ch-check { width:1.6rem; height:1.6rem; border:2px solid var(--line); border-radius:.4rem; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:1rem; }
+  .ch-row.done .ch-check { background:var(--green); border-color:var(--green); }
+  .ch-row.done .ch-title { text-decoration:line-through; color:var(--soft); }
+  .ch-title { flex:1; font-size:1rem; }
+  .ch-who { font-family:ui-monospace, Menlo, monospace; font-size:.78rem; border-radius:99px;
+    padding:.15rem .5rem; border:1px solid var(--line); color:var(--soft); }
+  .ch-who.b { background:#f3e3df; color:var(--mit); border-color:#e0c4bd; }
+  .ch-who.e { background:#e2ebf6; color:var(--chb); border-color:#c5d6ec; }
+  .ch-who.both { background:#e8efe4; color:var(--green); border-color:#c9d8c2; }
+
+  /* workouts */
+  .wo-person { margin:.3rem 0 .5rem; }
+  .wo-person .name { font-family:ui-monospace, Menlo, monospace; color:var(--soft); font-size:.8rem; }
+  .wo-body { font-size:.98rem; }
+
+  /* feedback fab + modals */
+  .fab { position:fixed; right:1rem; bottom:1rem; background:var(--mit); color:#fff; border:none;
+    border-radius:99px; padding:.75rem 1.2rem; font-family:inherit; font-size:1rem; cursor:pointer;
+    box-shadow:0 2px 8px rgba(35,32,25,.25); }
+  .modal-bg { position:fixed; inset:0; background:rgba(35,32,25,.45); display:none;
+    align-items:center; justify-content:center; padding:1rem; z-index:10; }
+  .modal-bg.on { display:flex; }
+  .modal { background:var(--card); border-radius:.8rem; padding:1rem 1.1rem; width:100%;
+    max-width:34rem; max-height:88vh; overflow-y:auto; }
+  .modal h2 { font-weight:normal; margin:.1rem 0 .7rem; font-size:1.2rem; }
+  .modal textarea { width:100%; min-height:5.5rem; font-family:inherit; font-size:1rem; padding:.5rem .6rem;
+    border:1px solid var(--line); border-radius:.5rem; background:#fff; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:99px; overflow:hidden; margin:.4rem 0; }
+  .seg button { font-family:inherit; border:none; background:transparent; padding:.4rem .95rem;
+    font-size:.95rem; cursor:pointer; color:var(--soft); }
+  .seg button.on { background:var(--mit); color:#fff; }
+  .btn { font-family:inherit; font-size:.98rem; background:var(--green); color:#fff; border:none;
+    border-radius:.5rem; padding:.5rem 1rem; cursor:pointer; }
+  .btn.ghost { background:none; color:var(--green); border:1px solid var(--green); }
+  .btn.red { background:var(--mit); }
+  .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .fb-item { border-top:1px dashed var(--line); padding:.45rem 0; font-size:.95rem; display:flex; gap:.5rem; align-items:baseline; }
+  .fb-item .who { font-family:ui-monospace, Menlo, monospace; color:var(--soft); font-size:.78rem; }
+  .fb-item .done-btn { margin-left:auto; border:none; background:none; color:var(--soft); cursor:pointer; }
+  .cfg-row { display:flex; gap:.4rem; align-items:center; padding:.3rem 0; border-top:1px dashed var(--line);
+    font-size:.92rem; flex-wrap:wrap; }
+  .cfg-row input, .cfg-row select { font-family:inherit; font-size:.88rem; padding:.3rem .45rem;
+    border:1px solid var(--line); border-radius:.4rem; background:#fff; }
+  .cfg-row .del { border:none; background:none; color:#b0a58e; cursor:pointer; font-size:1rem; }
+  .offline { position:fixed; left:50%; transform:translateX(-50%); bottom:.6rem; background:var(--busy);
+    color:#fff; padding:.3rem .8rem; border-radius:99px; font-size:.85rem; display:none; }
+  .offline.on { display:block; }
+</style>
+</head>
+<body>
+<header>
+  <div id="clock">--:--</div>
+  <div id="date"></div>
+  <div class="spacer"></div>
+  <div id="wxnow"></div>
+  <button class="gear" id="gear" title="Settings">&#9881;</button>
+</header>
+<main>
+  <section class="card" id="card-weekend"><h2>Weekend</h2><div id="weekend" class="muted">Loading…</div></section>
+  <section class="card" id="card-weather"><h2>Weather · Cambridge</h2><div id="weather" class="muted">Loading…</div></section>
+  <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
+  <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
+  <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
+</main>
+<button class="fab" id="fab">&#10022; Idea</button>
+<div class="offline" id="offline">Reconnecting…</div>
+
+<div class="modal-bg" id="fb-bg"><div class="modal">
+  <h2>Ideas + feedback</h2>
+  <div>From:
+    <span class="seg" id="fb-who"><button data-p="b">Brendan</button><button data-p="e">Emma</button></span>
+  </div>
+  <textarea id="fb-text" placeholder="A module idea, a bug, a wish…"></textarea>
+  <div class="row" style="margin-top:.5rem">
+    <button class="btn red" id="fb-send">Send</button>
+    <button class="btn ghost" data-close>Close</button>
+  </div>
+  <div id="fb-list"></div>
+</div></div>
+
+<div class="modal-bg" id="cfg-bg"><div class="modal">
+  <h2>Chore schedule</h2>
+  <div id="cfg-list"></div>
+  <div class="cfg-row" style="border-top:2px solid var(--line); margin-top:.4rem">
+    <input id="nc-title" placeholder="New chore" style="flex:1; min-width:8rem">
+    <select id="nc-cad"><option value="weekly">weekly</option><option value="daily">daily</option></select>
+    <select id="nc-day"><option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option>
+      <option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option></select>
+    <select id="nc-who"><option value="alt">alternate</option><option value="b">Brendan</option>
+      <option value="e">Emma</option><option value="both">both</option></select>
+    <button class="btn" id="nc-add">Add</button>
+  </div>
+  <div class="row" style="margin-top:.9rem">
+    <button class="btn ghost" data-close>Close</button>
+  </div>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let D = null, fetchedAt = 0, fbPerson = null;
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+// ---------- clock ----------
+function tickClock() {
+  const now = new Date();
+  const h24 = now.getHours(), m = String(now.getMinutes()).padStart(2, '0');
+  const h = ((h24 + 11) % 12) + 1;
+  $('clock').innerHTML = `${h}:${m}<span class="ampm"> ${h24 < 12 ? 'AM' : 'PM'}</span>`;
+  $('date').textContent = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ---------- render ----------
+function fmtRange(a, b) {
+  const o = { month:'short', day:'numeric' };
+  const da = new Date(a + 'T12:00:00'), db_ = new Date(b + 'T12:00:00');
+  return `${da.toLocaleDateString('en-US', o)} – ${db_.toLocaleDateString('en-US', o)}`;
+}
+function avHtml(av) {
+  const one = (p, label) => {
+    const a = av[p] || { state:'unknown', note:'' };
+    return `<div class="avline"><span class="name">${label}</span>
+      <span class="st-${a.state}">${a.state}${a.golden ? ' ✦' : ''}</span>
+      ${a.note ? `<span class="muted"> — ${esc(a.note)}</span>` : ''}</div>`;
+  };
+  return one('b', 'B') + one('e', 'E');
+}
+function weekendHtml(w, heading) {
+  if (!w) return '';
+  const pill = `<span class="pill ${esc(w.status)}">${esc(w.status)}</span>`;
+  const hol = w.label ? ` <span class="pill holiday">${esc(w.label)}</span>` : '';
+  const title = w.title || w.destination
+    ? `<div class="wk-title">${esc(w.title || '')}${w.destination && w.destination !== w.title ? ' · ' + esc(w.destination) : ''}</div>` : '';
+  const items = (w.items || []).length
+    ? `<ul class="wk-items">${w.items.map(i =>
+        `<li class="${i.done ? 'done' : ''}"><span class="t">${esc([i.day, i.time].filter(Boolean).join(' '))}</span><span>${esc(i.text)}</span></li>`).join('')}</ul>`
+      + (w.itemCount > w.items.length ? `<div class="muted">+ ${w.itemCount - w.items.length} more on the weekend site</div>` : '')
+    : '';
+  const notes = w.notes ? `<div class="muted" style="margin-top:.3rem">${esc(w.notes)}</div>` : '';
+  return `${heading ? `<div class="subhead">${heading}</div>` : ''}
+    <div class="wk-dates">${fmtRange(w.start, w.end)} ${pill}${hol}</div>
+    ${title}${avHtml(w.av || {})}${items}${notes}`;
+}
+function renderWeekend() {
+  const el = $('weekend'), r = D.weekend;
+  if (!r.ok) return el.innerHTML = `<span class="muted">Weekend site unreachable.</span>`;
+  const { next, nextPlanned, url } = r.data;
+  let h = weekendHtml(next, null) || '<span class="muted">Nothing on the books.</span>';
+  if (nextPlanned) h += weekendHtml(nextPlanned, 'Next planned-out weekend');
+  h += `<div style="margin-top:.7rem"><a class="plain" href="${esc(url)}/weekends">Open the weekend planner →</a></div>`;
+  el.innerHTML = h;
+}
+function renderWeather() {
+  const el = $('weather'), r = D.weather;
+  if (!r.ok) { $('wxnow').textContent = ''; return el.innerHTML = `<span class="muted">Weather unavailable.</span>`; }
+  const { hours, days } = r.data;
+  const nowH = hours[0];
+  if (nowH) $('wxnow').innerHTML = `<span class="t">${nowH.temp}&deg;</span> <span class="s">${esc(nowH.short)}</span>`;
+  const dayRows = days.map(d =>
+    `<div class="wx-day"><span class="n">${esc(d.name)}</span><span class="tp">${d.temp}&deg;</span>
+     <span class="sh">${esc(d.short)}${d.precip ? ` · ${d.precip}%` : ''}</span></div>`).join('');
+  const strip = hours.slice(0, 9).map(hp => {
+    const hh = new Date(hp.t).toLocaleTimeString('en-US', { hour:'numeric' }).replace(' ', '').toLowerCase();
+    return `<div class="wx-h"><div class="hh">${hh}</div><div class="tt">${hp.temp}&deg;</div>
+      <div class="pp">${hp.precip >= 20 ? hp.precip + '%' : ''}</div></div>`;
+  }).join('');
+  el.innerHTML = `<div class="wx-days">${dayRows}</div><div class="wx-strip">${strip}</div>`;
+}
+function renderMbta() {
+  const el = $('mbta'), r = D.mbta;
+  if (!r.ok) return el.innerHTML = `<span class="muted">MBTA unavailable.</span>`;
+  const age = Math.floor((Date.now() - fetchedAt) / 60000);
+  el.innerHTML = r.data.map(f => {
+    const mins = f.mins.map(m => Math.max(0, m - age));
+    const chips = mins.length
+      ? mins.map(m => `<span class="mb-min"><b>${m === 0 ? 'now' : m}</b>${m === 0 ? '' : 'm'}</span>`).join('')
+      : `<span class="mb-none">no departures soon</span>`;
+    const bus = f.badge !== 'RL';
+    return `<div class="mb-row">
+      <div class="badge ${bus ? 'bus' : ''}" style="background:${f.color}">${f.badge}</div>
+      <div class="mb-label">${esc(f.label)}${f.live ? '' : ' <span class="sched-note">sched</span>'}</div>
+      <div class="mb-mins">${chips}</div></div>`;
+  }).join('');
+}
+function whoChip(a) {
+  const label = a === 'b' ? 'B' : a === 'e' ? 'E' : 'B+E';
+  return `<span class="ch-who ${a === 'both' ? 'both' : a}">${label}</span>`;
+}
+function renderChores() {
+  const el = $('chores'), list = D.chores.today;
+  if (!list.length) return el.innerHTML = '<span class="muted">Nothing scheduled today.</span>';
+  el.innerHTML = list.map(c => `
+    <div class="ch-row ${c.done ? 'done' : ''}" data-ch="${c.id}">
+      <div class="ch-check">${c.done ? '&#10003;' : ''}</div>
+      <div class="ch-title">${esc(c.title)}</div>
+      ${c.done && c.doneBy ? `<span class="muted mono" style="font-size:.72rem">by ${c.doneBy.toUpperCase()}</span>` : ''}
+      ${whoChip(c.assignee)}
+    </div>`).join('');
+  el.querySelectorAll('.ch-row').forEach(row => row.onclick = async () => {
+    await fetch(`/api/chores/${row.dataset.ch}/toggle`, { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ date: D.today }) });
+    load();
+  });
+}
+function renderWorkouts() {
+  const el = $('workouts'), r = D.workouts;
+  if (!r.ok || (!r.data.today && !r.data.raw)) {
+    return el.innerHTML = `<span class="muted">No plan found for today.</span>
+      <div style="margin-top:.5rem"><a class="plain" href="${r.ok ? esc(r.data.url) : '#'}">Open workout planner →</a></div>`;
+  }
+  const t = r.data.today;
+  let body = '';
+  if (t && typeof t === 'object') {
+    for (const [k, v] of Object.entries(t)) {
+      body += `<div class="wo-person"><div class="name">${esc(k)}</div>
+        <div class="wo-body">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</div></div>`;
+    }
+  }
+  el.innerHTML = (body || '<span class="muted">Rest day.</span>')
+    + `<div style="margin-top:.4rem"><a class="plain" href="${esc(r.data.url)}">Open workout planner →</a></div>`;
+}
+
+// ---------- load loop ----------
+async function load() {
+  try {
+    const r = await fetch('/api/dashboard');
+    if (r.status === 401) return location.href = '/';
+    D = await r.json(); fetchedAt = Date.now();
+    if (!fbPerson) fbPerson = D.role;
+    $('offline').classList.remove('on');
+    renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
+    setFbWho();
+  } catch (e) { $('offline').classList.add('on'); }
+}
+load();
+setInterval(load, 45 * 1000);
+setInterval(() => { if (D && D.mbta && D.mbta.ok) renderMbta(); }, 20 * 1000);
+
+// ---------- feedback ----------
+function setFbWho() {
+  document.querySelectorAll('#fb-who button').forEach(b =>
+    b.classList.toggle('on', b.dataset.p === fbPerson));
+}
+document.querySelectorAll('#fb-who button').forEach(b =>
+  b.onclick = () => { fbPerson = b.dataset.p; setFbWho(); });
+$('fab').onclick = async () => { $('fb-bg').classList.add('on'); loadFeedback(); };
+async function loadFeedback() {
+  const j = await (await fetch('/api/feedback')).json();
+  const open = j.feedback.filter(f => f.status === 'new');
+  $('fb-list').innerHTML = open.length
+    ? `<div class="subhead">Open ideas</div>` + open.map(f =>
+        `<div class="fb-item"><span class="who">${f.person.toUpperCase()}</span><span>${esc(f.text)}</span>
+         <button class="done-btn" data-fb="${f.id}">&#10003; done</button></div>`).join('')
+    : '';
+  $('fb-list').querySelectorAll('.done-btn').forEach(b => b.onclick = async () => {
+    await fetch(`/api/feedback/${b.dataset.fb}`, { method:'PATCH',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status:'done' }) });
+    loadFeedback();
+  });
+}
+$('fb-send').onclick = async () => {
+  const text = $('fb-text').value.trim();
+  if (!text) return;
+  await fetch('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ person: fbPerson, text }) });
+  $('fb-text').value = '';
+  loadFeedback();
+};
+
+// ---------- settings (chores) ----------
+$('gear').onclick = () => { $('cfg-bg').classList.add('on'); loadCfg(); };
+async function loadCfg() {
+  const j = await (await fetch('/api/chores')).json();
+  $('cfg-list').innerHTML = j.chores.map(c => `
+    <div class="cfg-row">
+      <span style="flex:1">${esc(c.title)}</span>
+      <span class="mono" style="color:var(--soft); font-size:.78rem">
+        ${c.cadence === 'daily' ? 'daily' : DOWS[c.day] || '?'} · ${c.assignee}</span>
+      <button class="del" data-ch="${c.id}">&#10005;</button>
+    </div>`).join('');
+  $('cfg-list').querySelectorAll('.del').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this chore?')) return;
+    await fetch(`/api/chores/${b.dataset.ch}`, { method:'DELETE' });
+    loadCfg(); load();
+  });
+}
+$('nc-add').onclick = async () => {
+  const title = $('nc-title').value.trim();
+  if (!title) return;
+  await fetch('/api/chores', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ title, cadence: $('nc-cad').value,
+      day: Number($('nc-day').value), assignee: $('nc-who').value }) });
+  $('nc-title').value = '';
+  loadCfg(); load();
+};
+
+document.querySelectorAll('[data-close]').forEach(b =>
+  b.onclick = () => b.closest('.modal-bg').classList.remove('on'));
+document.querySelectorAll('.modal-bg').forEach(bg =>
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('on'); }));
+</script>
+</body>
+</html>

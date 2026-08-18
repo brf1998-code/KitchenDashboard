@@ -1,0 +1,14 @@
+{
+  "name": "kitchen-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "B+E kitchen kiosk dashboard - weekends, weather, MBTA, workouts, chores",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
