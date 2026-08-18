@@ -396,7 +396,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     role: req.role, serverTime: now.toISOString(), today,
     weather, mbta, weekend, workouts,
     chores: { today: choresFor(today, dow, true), week },
-    photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC LIMIT 60').all(),
+    photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC').all(),
     feedbackOpen: db.prepare("SELECT COUNT(*) c FROM feedback WHERE status='new'").get().c,
   });
 });
