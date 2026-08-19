@@ -53,7 +53,19 @@
   #card-mbta    { grid-area:mbta; border-top:3px solid #DA291C; }
   #card-chores  { grid-area:chores; border-top:3px solid var(--green); }
   #card-workouts{ grid-area:workouts; border-top:3px solid var(--chb); }
-  #card-photos  { grid-area:photos; border-top:3px solid var(--mitdark); display:flex; flex-direction:column; }
+  #col-left     { grid-area:weekend; display:flex; flex-direction:column; gap:.8rem; min-height:0; }
+  #card-shift   { border-top:3px solid var(--chb); min-height:0; flex:none; }
+  #card-weekend { flex:1; min-height:0; }
+  #card-photos  { grid-area:photos; border-top:3px solid var(--mitdark); display:flex; flex-direction:column; min-height:0; }
+  .sh-row { display:flex; align-items:baseline; gap:.55rem; padding:.3rem 0; }
+  .sh-when { font-family:ui-monospace, Menlo, monospace; font-size:.72rem; color:var(--soft);
+    min-width:4.6rem; text-transform:uppercase; letter-spacing:.05em; }
+  .sh-label { font-size:1.05rem; }
+  .sh-label.k-off { color:var(--green); }
+  .sh-label.k-night { color:#4B3B8F; }
+  .sh-label.k-vacation { color:var(--gold); }
+  .sh-time { font-family:ui-monospace, Menlo, monospace; font-size:.8rem; color:var(--soft); margin-left:auto; }
+  .sh-night-ico { font-size:.85rem; }
 
   /* weekend */
   .wk-dates { font-size:1.25rem; }
@@ -234,12 +246,15 @@
   <button class="gear" id="gear" title="Settings">&#9881;</button>
 </header>
 <main>
-  <section class="card" id="card-weekend"><h2>Weekend</h2><div id="weekend" class="muted">Loading…</div></section>
+  <div id="col-left">
+    <section class="card" id="card-shift"><h2>Emma's shift</h2><div id="shift" class="muted">Loading…</div></section>
+    <section class="card" id="card-weekend"><h2>Weekend</h2><div id="weekend" class="muted">Loading…</div></section>
+  </div>
   <section class="card" id="card-weather"><h2>Weather · Cambridge</h2><div id="weather" class="muted">Loading…</div></section>
   <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
   <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
   <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
-  <section class="card" id="card-photos"><h2>Us</h2>
+  <section class="card" id="card-photos">
     <div class="polaroid" id="polaroid0"><div class="ph" id="ph0"></div><div class="cap" id="cap0"></div></div>
     <div class="polaroid" id="polaroid1"><div class="ph" id="ph1"></div><div class="cap" id="cap1"></div></div>
   </section>
@@ -369,6 +384,19 @@ function compactRow(w, pin) {
     ${avDots(w.av || {})}
     ${pin ? `<span class="wk-count mono">${d}d</span>` : ''}
   </div>`;
+}
+function renderShift() {
+  const e = D.emma || {};
+  const row = (when, s) => {
+    if (!s) return `<div class="sh-row"><span class="sh-when">${when}</span>
+      <span class="sh-label muted" style="font-style:italic">not posted yet</span></div>`;
+    const ico = s.kind === 'night' ? ' <span class="sh-night-ico">&#9789;</span>'
+      : s.kind === 'vacation' ? ' &#9992;' : '';
+    return `<div class="sh-row"><span class="sh-when">${when}</span>
+      <span class="sh-label k-${esc(s.kind)}">${esc(s.label)}${ico}</span>
+      ${s.time ? `<span class="sh-time">${esc(s.time)}</span>` : ''}</div>`;
+  };
+  $('shift').innerHTML = row('Today', e.today) + row('Tomorrow', e.tomorrow);
 }
 function renderWeekend() {
   const el = $('weekend'), r = D.weekend;
@@ -526,20 +554,58 @@ setInterval(() => {
   if (phPool.length > 2) { setSlot(phSlot); phSlot = 1 - phSlot; }
 }, 30 * 1000);
 
-// ---------- quips ----------
+// ---------- trivia + fun facts ----------
 const QUIPS = [
-  'Walk tonight?',
-  'The Red Line is doing its best.',
+  // Boston + Cambridge
+  'The Red Line opened in 1912 — Harvard to Park Street.',
+  'The Boston subway (1897) was the first in the United States.',
+  'The Charles River basin is fresh water, held back by a dam near the Museum of Science.',
+  'MIT’s Infinite Corridor is 825 feet long; twice a year the sun shines straight down it (“MIThenge”).',
+  'Fenway Park (1912) is the oldest ballpark in Major League Baseball.',
+  'The Great Molasses Flood of 1919 sent a wave of molasses through the North End at ~35 mph.',
+  'Boston Common (1634) is the oldest public park in America.',
+  'The USS Constitution in Charlestown is the world’s oldest commissioned warship still afloat.',
+  'Harvard (1636) is older than calculus.',
+  'The first telephone call happened in Boston: Bell to Watson, 1876.',
   'Storrow Drive: still not for trucks.',
-  'Charles River status: scenic.',
-  'Fed by the 1 bus, powered by Dunkin’.',
-  'Kendall says hi.',
-  'Somewhere a pager just went off. Sorry, Emma.',
-  'Psets don’t do themselves. Unfortunately.',
-  'Wicked good day for it.',
-  'Beans: baked. Town: home of them.',
-  'Central Square: never boring.',
-  'Two PINs, one kitchen.',
+  // Aerospace
+  'The Apollo Guidance Computer was designed at MIT — about 70 KB of memory to land on the Moon.',
+  'The Wright Flyer’s first flight covered 120 feet — shorter than a 737’s wingspan.',
+  'Voyager 1 has been flying since 1977 and is now the most distant human-made object.',
+  'The ISS orbits at ~17,500 mph — sunrise every 90 minutes.',
+  'The SR-71 leaked fuel on the ground; its panels only sealed once heated at Mach 3.',
+  'Saturn V is still the most powerful rocket ever flown to the Moon — 7.5 million pounds of thrust.',
+  'A day on Venus is longer than its year.',
+  'Neutron stars can spin hundreds of times a second.',
+  'The Moon is drifting away from Earth about 1.5 inches a year.',
+  'Helicopter blades fly forward on one side and nearly stall on the other, every rotation.',
+  // Medicine
+  'The first public demonstration of ether anesthesia was at Mass General, 1846 — the Ether Dome is still there.',
+  'Your heart beats about 100,000 times a day.',
+  'Red blood cells make a full lap of your body in about a minute.',
+  'The first successful human organ transplant (a kidney) was done in Boston in 1954.',
+  'Bones are, ounce for ounce, stronger than steel.',
+  'Your stomach lining replaces itself every few days so it doesn’t digest itself.',
+  'Smallpox is the only human disease ever eradicated.',
+  'Babies are born with ~300 bones; adults have 206.',
+  'The human eye can distinguish roughly a million colors.',
+  'Half the neurons in your body are in the cerebellum — balance is expensive.',
+  // US + general
+  'Alaska is the westernmost AND easternmost US state — the Aleutians cross the 180th meridian.',
+  'The Library of Congress holds over 170 million items.',
+  'Maine is the only state that borders exactly one other state.',
+  'The Constitution is 4,543 words — shortest of any major government.',
+  'A bolt of lightning is about five times hotter than the surface of the sun.',
+  'Honey never spoils. Edible honey has been found in Egyptian tombs.',
+  'Octopuses have three hearts and blue blood.',
+  'Bananas are berries. Strawberries are not.',
+  'There are more possible chess games than atoms in the observable universe.',
+  'Wombats produce cube-shaped poop.',
+  'A group of flamingos is called a flamboyance.',
+  'Sharks existed before trees.',
+  'Scotland’s national animal is the unicorn.',
+  'The Eiffel Tower grows about six inches taller in summer heat.',
+  'Walk tonight?',
 ];
 let quipIdx = Math.floor(Math.random() * QUIPS.length);
 function dynamicQuips() {
@@ -577,7 +643,7 @@ async function load() {
     D = await r.json(); fetchedAt = Date.now();
     if (!fbPerson) fbPerson = D.role;
     $('offline').classList.remove('on');
-    renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
+    renderShift(); renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
     syncPhotos(); setFbWho();
     if (!$('quip').textContent) tickQuip();
   } catch (e) { $('offline').classList.add('on'); }

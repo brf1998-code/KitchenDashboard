@@ -74,6 +74,76 @@ try { db.exec("ALTER TABLE photos ADD COLUMN taken TEXT DEFAULT ''"); } catch (e
 try { db.exec("ALTER TABLE photos ADD COLUMN place TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE chores ADD COLUMN due TEXT DEFAULT ''"); } catch (e) {}
 db.exec('CREATE TABLE IF NOT EXISTS pins (weekend_id TEXT PRIMARY KEY, created TEXT)');
+db.exec(`CREATE TABLE IF NOT EXISTS emma_shifts (
+  date TEXT PRIMARY KEY, label TEXT, time TEXT DEFAULT '', kind TEXT DEFAULT 'day'
+)`);
+
+// Emma's rotation schedule, transcribed from the Aug-Dec 2026 block screenshots.
+// Quarterly updates come in through POST /api/shifts (settings modal has an import box).
+const EMMA_SHIFTS = [
+  ['2026-08-09', 'Jeopardy', '5a–5p', 'day'],
+  ['2026-08-10', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-08-11', 'ST', '7a–5p', 'day'], ['2026-08-12', 'ST', '7a–5p', 'day'],
+  ['2026-08-13', 'ST', '7a–5p', 'day'], ['2026-08-14', 'ST', '7a–5p', 'day'],
+  ['2026-08-15', 'Off Weekend', '', 'off'], ['2026-08-16', 'Off Weekend', '', 'off'],
+  ['2026-08-17', 'ST', '7a–5p', 'day'],
+  ['2026-08-18', 'HM', '7a–5p', 'day'], ['2026-08-19', 'HM', '7a–5p', 'day'],
+  ['2026-08-20', 'HM', '7a–5p', 'day'], ['2026-08-21', 'HM', '7a–5p', 'day'],
+  ['2026-08-22', 'HM Day', '7a–5p', 'day'], ['2026-08-23', 'HM Day', '7a–5p', 'day'],
+  ['2026-08-24', 'HM', '7a–5p', 'day'],
+  ['2026-08-25', 'ERC nights', '10p–8a', 'night'], ['2026-08-26', 'ERC nights', '10p–8a', 'night'],
+  ['2026-08-27', 'ERC nights', '10p–8a', 'night'], ['2026-08-28', 'ERC nights', '10p–8a', 'night'],
+  ['2026-08-29', 'Off Weekend', '', 'off'], ['2026-08-30', 'Off Weekend', '', 'off'],
+  ['2026-08-31', 'ERC nights', '10p–8a', 'night'], ['2026-09-01', 'ERC nights', '10p–8a', 'night'],
+  ['2026-09-02', 'ERC nights', '10p–8a', 'night'], ['2026-09-03', 'ERC nights', '10p–8a', 'night'],
+  ['2026-09-04', 'Off', '', 'off'], ['2026-09-05', 'Off', '', 'off'], ['2026-09-06', 'Off', '', 'off'],
+  ['2026-09-07', 'ERC nights', '10p–8a', 'night'],
+  ['2026-09-08', 'Off (Outpatient Subs block)', '', 'off'],
+  ['2026-09-09', 'BMC Cardiology Outpt', '8a–5p', 'day'],
+  ['2026-09-10', 'BMC Card AM · SDL PM', '8a–5p', 'day'],
+  ['2026-09-11', 'BMC Cardiology Outpt', '8a–5p', 'day'],
+  ['2026-09-12', 'BWH NICU', '8a–5p', 'day'],
+  ['2026-09-14', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-09-15', 'BMC Cardiology Outpt', '8a–5p', 'day'],
+  ['2026-09-16', 'BMC Card AM · SDL PM', '8a–5p', 'day'],
+  ['2026-09-17', 'BMC Cardiology Outpt', '8a–5p', 'day'],
+  ['2026-09-18', 'BMC Card AM · SDL PM', '8a–5p', 'day'],
+  ['2026-09-19', 'Off Weekend', '', 'off'], ['2026-09-20', 'Off Weekend', '', 'off'],
+  ['2026-09-21', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-09-22', 'CCS', '6:30a–5p', 'day'], ['2026-09-23', 'CCS', '6:30a–5p', 'day'],
+  ['2026-09-24', 'CCS', '6:30a–5p', 'day'], ['2026-09-25', 'CCS', '6:30a–5p', 'day'],
+  ['2026-09-26', 'CCS Day', '6:30a–5p', 'day'], ['2026-09-27', 'CCS Day', '6:30a–5p', 'day'],
+  ['2026-09-28', 'CCS', '6:30a–5p', 'day'], ['2026-09-29', 'CCS', '6:30a–5p', 'day'],
+  ['2026-09-30', 'CCS', '6:30a–5p', 'day'], ['2026-10-01', 'CCS', '6:30a–5p', 'day'],
+  ['2026-10-02', 'CCS', '6:30a–5p', 'day'],
+  ['2026-10-03', 'Off Weekend', '', 'off'], ['2026-10-04', 'Off Weekend', '', 'off'],
+  ['2026-10-05', 'CCS', '6:30a–5p', 'day'],
+  ['2026-10-06', 'Vacation', '', 'vacation'], ['2026-10-07', 'Vacation', '', 'vacation'],
+  ['2026-10-08', 'Vacation', '', 'vacation'], ['2026-10-09', 'Vacation', '', 'vacation'],
+  ['2026-10-10', 'Vacation', '', 'vacation'], ['2026-10-11', 'Vacation', '', 'vacation'],
+  ['2026-10-12', 'Vacation', '', 'vacation'], ['2026-10-13', 'Vacation', '', 'vacation'],
+  ['2026-10-14', 'Vacation', '', 'vacation'], ['2026-10-15', 'Vacation', '', 'vacation'],
+  ['2026-10-16', 'Vacation', '', 'vacation'], ['2026-10-17', 'Vacation', '', 'vacation'],
+  ['2026-10-18', 'Vacation', '', 'vacation'], ['2026-10-19', 'Vacation', '', 'vacation'],
+  ['2026-10-20', 'ELX', '8a–5p', 'day'], ['2026-10-21', 'ELX', '8a–5p', 'day'],
+  ['2026-10-22', 'ELX', '8a–5p', 'day'], ['2026-10-23', 'ELX', '8a–5p', 'day'],
+  ['2026-10-24', 'Off', '', 'off'], ['2026-10-25', 'Off', '', 'off'],
+  ['2026-10-26', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-10-27', 'ELX', '8a–5p', 'day'], ['2026-10-28', 'ELX', '8a–5p', 'day'],
+  ['2026-10-29', 'Retreat', '8a–5p', 'day'], ['2026-10-30', 'ELX', '8a–5p', 'day'],
+  ['2026-10-31', 'ST Day', '7a–5p', 'day'], ['2026-11-01', 'ST Day', '7a–5p', 'day'],
+  ['2026-11-02', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-11-03', 'ELX', '8a–5p', 'day'],
+  ['2026-11-17', 'MSICU block starts', '', 'day'],
+  ['2026-11-20', 'Off Night?', '5p–5a', 'off'],
+  ['2026-11-21', 'Off Weekend?', '', 'off'], ['2026-11-22', 'Off Weekend?', '', 'off'],
+  ['2026-12-01', 'Mental Health Block', '8a–5p', 'day'],
+  ['2026-12-04', 'Off Night', '5p–5a', 'off'], ['2026-12-05', 'Off Weekend', '', 'off'],
+];
+{
+  const insS = db.prepare('INSERT OR IGNORE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
+  for (const s of EMMA_SHIFTS) insS.run(...s);
+}
 try {
   db.exec(`INSERT OR IGNORE INTO chore_marks (chore_id, date, person, done_at)
     SELECT chore_id, date, person, done_at FROM chore_log`);
@@ -396,6 +466,12 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     role: req.role, serverTime: now.toISOString(), today,
     weather, mbta, weekend, workouts,
     chores: { today: choresFor(today, dow, true), week },
+    emma: (() => {
+      const tomorrow = localISO(new Date(now.getTime() + 86400000));
+      const get = d => db.prepare('SELECT * FROM emma_shifts WHERE date = ?').get(d) || null;
+      const range = db.prepare('SELECT MIN(date) a, MAX(date) b, COUNT(*) c FROM emma_shifts').get();
+      return { today: get(today), tomorrow: get(tomorrow), range };
+    })(),
     photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC').all(),
     feedbackOpen: db.prepare("SELECT COUNT(*) c FROM feedback WHERE status='new'").get().c,
   });
@@ -522,6 +598,24 @@ app.delete('/api/photos/:id', requireAuth, (req, res) => {
 app.get('/img/photos/:file', requireAuth, (req, res) => {
   const f = path.basename(req.params.file);
   res.sendFile(path.join(DATA_DIR, 'photos', f), err => { if (err) res.status(404).end(); });
+});
+
+// Emma's shift schedule: bulk import replaces matching dates.
+// Body: { shifts: [{date:"YYYY-MM-DD", label, time?, kind?}], clearFrom?: "YYYY-MM-DD" }
+app.post('/api/shifts', requireAuth, (req, res) => {
+  const b = req.body || {};
+  if (b.clearFrom && /^\d{4}-\d{2}-\d{2}$/.test(String(b.clearFrom)))
+    db.prepare('DELETE FROM emma_shifts WHERE date >= ?').run(String(b.clearFrom));
+  const shifts = Array.isArray(b.shifts) ? b.shifts : [];
+  const ins = db.prepare('INSERT OR REPLACE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
+  let n = 0;
+  for (const s of shifts) {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.date)) || !s.label) continue;
+    ins.run(String(s.date), String(s.label), String(s.time || ''),
+      ['day', 'night', 'off', 'vacation'].includes(s.kind) ? s.kind : 'day');
+    n++;
+  }
+  res.json({ ok: true, imported: n });
 });
 
 // pinned weekends
