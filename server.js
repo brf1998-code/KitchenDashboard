@@ -74,6 +74,29 @@ try { db.exec("ALTER TABLE photos ADD COLUMN taken TEXT DEFAULT ''"); } catch (e
 try { db.exec("ALTER TABLE photos ADD COLUMN place TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE chores ADD COLUMN due TEXT DEFAULT ''"); } catch (e) {}
 db.exec('CREATE TABLE IF NOT EXISTS pins (weekend_id TEXT PRIMARY KEY, created TEXT)');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todo_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    person TEXT,                    -- 'b' | 'e' | 'house'
+    name TEXT, color TEXT DEFAULT '', pos INTEGER DEFAULT 0, archived INTEGER DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS todo_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER, content TEXT, notes TEXT DEFAULT '',
+    priority INTEGER DEFAULT 4,     -- 1 = p1 (highest) .. 4 = p4, Todoist-style
+    due TEXT DEFAULT '',            -- YYYY-MM-DD or ''
+    recur TEXT DEFAULT '',          -- 'every day', 'every mon, wed', 'every month', ...
+    done INTEGER DEFAULT 0, done_at TEXT DEFAULT '',
+    created TEXT, pos INTEGER DEFAULT 0
+  );
+`);
+{
+  const hasP = db.prepare('SELECT id FROM todo_projects WHERE person = ? AND name = ?');
+  const insP = db.prepare('INSERT INTO todo_projects (person, name, pos) VALUES (?, ?, ?)');
+  if (!hasP.get('house', 'Household')) insP.run('house', 'Household', 0);
+  if (!hasP.get('b', 'Inbox')) insP.run('b', 'Inbox', 1);
+  if (!hasP.get('e', 'Inbox')) insP.run('e', 'Inbox', 1);
+}
 db.exec(`CREATE TABLE IF NOT EXISTS emma_shifts (
   date TEXT PRIMARY KEY, label TEXT, time TEXT DEFAULT '', kind TEXT DEFAULT 'day'
 )`);
@@ -472,6 +495,13 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
       const range = db.prepare('SELECT MIN(date) a, MAX(date) b, COUNT(*) c FROM emma_shifts').get();
       return { today: get(today), tomorrow: get(tomorrow), range };
     })(),
+    todo: (() => {
+      const count = role => db.prepare(`SELECT COUNT(*) c FROM todo_tasks t
+        JOIN todo_projects p ON p.id = t.project_id
+        WHERE t.done = 0 AND t.due != '' AND t.due <= ? AND p.archived = 0 AND p.person IN (?, 'house')`)
+        .get(today, role).c;
+      return { b: count('b'), e: count('e') };
+    })(),
     photos: db.prepare('SELECT id, file, caption FROM photos ORDER BY id DESC').all(),
     feedbackOpen: db.prepare("SELECT COUNT(*) c FROM feedback WHERE status='new'").get().c,
   });
@@ -598,6 +628,208 @@ app.delete('/api/photos/:id', requireAuth, (req, res) => {
 app.get('/img/photos/:file', requireAuth, (req, res) => {
   const f = path.basename(req.params.file);
   res.sendFile(path.join(DATA_DIR, 'photos', f), err => { if (err) res.status(404).end(); });
+});
+
+// ---------- to-do (Todoist-style) ----------
+const DAYNAMES = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5, sat: 6, saturday: 6 };
+function addDaysISO(s, n) { const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function dowOf(s) { return new Date(s + 'T12:00:00Z').getUTCDay(); }
+// Given a recur rule and the date it was completed relative to, find the next due date.
+function nextRecurDue(rule, fromISO) {
+  const r = String(rule).toLowerCase().replace(/^every\s+/, '').trim();
+  const from = fromISO;
+  let m;
+  if (r === 'day' || r === 'daily' || r === 'morning' || r === 'evening' || r === 'night')
+    return addDaysISO(from, 1);
+  if (r === 'weekday' || r === 'workday') {
+    let d = addDaysISO(from, 1);
+    while ([0, 6].includes(dowOf(d))) d = addDaysISO(d, 1);
+    return d;
+  }
+  if (r === 'weekend') {
+    let d = addDaysISO(from, 1);
+    while (![0, 6].includes(dowOf(d))) d = addDaysISO(d, 1);
+    return d;
+  }
+  if (r === 'week' || r === 'weekly') return addDaysISO(from, 7);
+  if (r === 'month' || r === 'monthly') {
+    const d = new Date(from + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  if (r === 'year' || r === 'yearly' || r === 'annually') {
+    const d = new Date(from + 'T12:00:00Z'); d.setUTCFullYear(d.getUTCFullYear() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  if ((m = r.match(/^(\d+)\s*(day|week|month)s?$/)))
+    return m[2] === 'day' ? addDaysISO(from, Number(m[1]))
+      : m[2] === 'week' ? addDaysISO(from, 7 * Number(m[1]))
+      : (() => { const d = new Date(from + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + Number(m[1])); return d.toISOString().slice(0, 10); })();
+  if ((m = r.match(/^(\d{1,2})(st|nd|rd|th)$/))) {
+    const day = Number(m[1]);
+    const d = new Date(from + 'T12:00:00Z');
+    if (d.getUTCDate() >= day) d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCDate(Math.min(day, 28) === day ? day : day); // clamp weirdness left to JS
+    return d.toISOString().slice(0, 10);
+  }
+  // "mon", "mon, wed, fri", "other monday" (biweekly)
+  const other = r.startsWith('other ');
+  const names = (other ? r.slice(6) : r).split(/[,\s]+and\s+|,\s*|\s+/).map(s => s.trim()).filter(Boolean);
+  const dows = names.map(n => DAYNAMES[n]).filter(v => v !== undefined);
+  if (dows.length) {
+    let d = addDaysISO(from, other ? 8 : 1);
+    for (let i = 0; i < 15; i++) { if (dows.includes(dowOf(d))) return d; d = addDaysISO(d, 1); }
+  }
+  return addDaysISO(from, 1); // unrecognized rule: behave like daily rather than dying
+}
+function todoProjectsFor(role) {
+  return db.prepare("SELECT * FROM todo_projects WHERE archived = 0 AND person IN (?, 'house') ORDER BY person = 'house' DESC, pos, id").all(role);
+}
+app.get('/todo', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'todo.html')));
+app.get('/api/todo/chores', requireAuth, (req, res) => {
+  const today = localISO(), dow = localDow();
+  const list = choresFor(today, dow, true).filter(c => c.assignee === req.role || c.assignee === 'both');
+  res.json({ date: today, role: req.role, chores: list });
+});
+app.get('/api/todo/state', requireAuth, (req, res) => {
+  const projects = todoProjectsFor(req.role);
+  const ids = projects.map(p => p.id);
+  const tasks = ids.length
+    ? db.prepare(`SELECT * FROM todo_tasks WHERE project_id IN (${ids.map(() => '?').join(',')})
+        ORDER BY done, due = '', due, priority, pos, id`).all(...ids)
+    : [];
+  res.json({ role: req.role, today: localISO(), projects, tasks });
+});
+app.post('/api/todo/projects', requireAuth, (req, res) => {
+  const name = String((req.body || {}).name || '').trim();
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const person = (req.body || {}).shared ? 'house' : req.role;
+  const pos = (db.prepare('SELECT MAX(pos) m FROM todo_projects').get().m || 0) + 1;
+  db.prepare('INSERT INTO todo_projects (person, name, pos) VALUES (?, ?, ?)').run(person, name, pos);
+  res.json({ ok: true });
+});
+app.patch('/api/todo/projects/:id', requireAuth, (req, res) => {
+  for (const f of ['name']) if (f in (req.body || {}))
+    db.prepare(`UPDATE todo_projects SET ${f} = ? WHERE id = ?`).run(String(req.body[f]), req.params.id);
+  if ('archived' in (req.body || {}))
+    db.prepare('UPDATE todo_projects SET archived = ? WHERE id = ?').run(req.body.archived ? 1 : 0, req.params.id);
+  res.json({ ok: true });
+});
+function ownsProject(role, pid) {
+  const p = db.prepare('SELECT person FROM todo_projects WHERE id = ?').get(pid);
+  return p && (p.person === role || p.person === 'house');
+}
+app.post('/api/todo/tasks', requireAuth, (req, res) => {
+  const b = req.body || {};
+  const content = String(b.content || '').trim();
+  if (!content) return res.status(400).json({ error: 'content required' });
+  if (!ownsProject(req.role, b.project_id)) return res.status(400).json({ error: 'bad project' });
+  const pri = [1, 2, 3, 4].includes(Number(b.priority)) ? Number(b.priority) : 4;
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? String(b.due) : '';
+  const recur = String(b.recur || '').trim().toLowerCase();
+  const pos = (db.prepare('SELECT MAX(pos) m FROM todo_tasks WHERE project_id = ?').get(b.project_id).m || 0) + 1;
+  db.prepare(`INSERT INTO todo_tasks (project_id, content, notes, priority, due, recur, created, pos)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(Number(b.project_id), content, String(b.notes || ''), pri,
+      due || (recur ? localISO() : ''), recur, new Date().toISOString(), pos);
+  res.json({ ok: true });
+});
+app.patch('/api/todo/tasks/:id', requireAuth, (req, res) => {
+  const t = db.prepare('SELECT * FROM todo_tasks WHERE id = ?').get(req.params.id);
+  if (!t || !ownsProject(req.role, t.project_id)) return res.status(404).json({ error: 'no such task' });
+  const b = req.body || {};
+  for (const f of ['content', 'notes', 'recur']) if (f in b)
+    db.prepare(`UPDATE todo_tasks SET ${f} = ? WHERE id = ?`).run(String(b[f]), req.params.id);
+  if ('due' in b && (/^\d{4}-\d{2}-\d{2}$/.test(String(b.due)) || b.due === ''))
+    db.prepare('UPDATE todo_tasks SET due = ? WHERE id = ?').run(String(b.due), req.params.id);
+  if ('priority' in b && [1, 2, 3, 4].includes(Number(b.priority)))
+    db.prepare('UPDATE todo_tasks SET priority = ? WHERE id = ?').run(Number(b.priority), req.params.id);
+  if ('project_id' in b && ownsProject(req.role, b.project_id))
+    db.prepare('UPDATE todo_tasks SET project_id = ? WHERE id = ?').run(Number(b.project_id), req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/todo/tasks/:id/complete', requireAuth, (req, res) => {
+  const t = db.prepare('SELECT * FROM todo_tasks WHERE id = ?').get(req.params.id);
+  if (!t || !ownsProject(req.role, t.project_id)) return res.status(404).json({ error: 'no such task' });
+  if (t.recur) {
+    const today = localISO();
+    const from = t.due && t.due > today ? t.due : today;
+    db.prepare('UPDATE todo_tasks SET due = ?, done = 0 WHERE id = ?')
+      .run(nextRecurDue(t.recur, from), req.params.id);
+    return res.json({ ok: true, recurred: true });
+  }
+  db.prepare('UPDATE todo_tasks SET done = 1, done_at = ? WHERE id = ?')
+    .run(new Date().toISOString(), req.params.id);
+  res.json({ ok: true });
+});
+app.post('/api/todo/tasks/:id/uncomplete', requireAuth, (req, res) => {
+  db.prepare("UPDATE todo_tasks SET done = 0, done_at = '' WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+app.delete('/api/todo/tasks/:id', requireAuth, (req, res) => {
+  const t = db.prepare('SELECT * FROM todo_tasks WHERE id = ?').get(req.params.id);
+  if (t && ownsProject(req.role, t.project_id))
+    db.prepare('DELETE FROM todo_tasks WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+// Todoist CSV import: TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,...
+function parseCsvLine(line) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+app.post('/api/todo/import', requireAuth, (req, res) => {
+  const b = req.body || {};
+  if (!ownsProject(req.role, b.project_id)) return res.status(400).json({ error: 'bad project' });
+  const lines = String(b.csv || '').split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return res.status(400).json({ error: 'empty csv' });
+  const header = parseCsvLine(lines[0]).map(h => h.trim().toUpperCase());
+  const col = name => header.indexOf(name);
+  const iType = col('TYPE'), iContent = col('CONTENT'), iPri = col('PRIORITY'),
+    iIndent = col('INDENT'), iDate = col('DATE'), iDesc = col('DESCRIPTION');
+  if (iType < 0 || iContent < 0) return res.status(400).json({ error: 'not a Todoist CSV (need TYPE and CONTENT columns)' });
+  const today = localISO();
+  let n = 0, pos = (db.prepare('SELECT MAX(pos) m FROM todo_tasks WHERE project_id = ?').get(b.project_id).m || 0);
+  const ins = db.prepare(`INSERT INTO todo_tasks (project_id, content, notes, priority, due, recur, created, pos)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+  for (const line of lines.slice(1)) {
+    const f = parseCsvLine(line);
+    if ((f[iType] || '').trim() !== 'task') continue;
+    let content = (f[iContent] || '').trim();
+    if (!content) continue;
+    const indent = iIndent >= 0 ? Number(f[iIndent] || 1) : 1;
+    if (indent > 1) content = '↳ '.repeat(indent - 1) + content;
+    const pri = iPri >= 0 && [1, 2, 3, 4].includes(Number(f[iPri])) ? Number(f[iPri]) : 4;
+    let due = '', recur = '';
+    const dateStr = (iDate >= 0 ? f[iDate] || '' : '').trim();
+    if (dateStr) {
+      const lower = dateStr.toLowerCase();
+      if (lower.startsWith('every')) { recur = lower; due = today; }
+      else {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed)) {
+          // Todoist exports often omit the year ("Aug 23" → JS assumes 2001):
+          // pin to this year, rolling forward if that date already passed.
+          if (parsed.getFullYear() < 2020) parsed.setFullYear(Number(today.slice(0, 4)));
+          let d = parsed.toISOString().slice(0, 10);
+          if (d < today) { parsed.setFullYear(parsed.getFullYear() + 1); d = parsed.toISOString().slice(0, 10); }
+          due = d;
+        }
+      }
+    }
+    ins.run(Number(b.project_id), content, iDesc >= 0 ? (f[iDesc] || '').trim() : '',
+      pri, due, recur, new Date().toISOString(), ++pos);
+    n++;
+  }
+  res.json({ ok: true, imported: n });
 });
 
 // Emma's shift schedule: bulk import replaces matching dates.

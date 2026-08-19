@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>B + E — To-dos</title>
+<style>
+  :root {
+    --paper:#faf6ef; --card:#fffdf8; --line:#e5ddcc; --ink:#232019; --soft:#6b6353;
+    --mit:#A31F34; --chb:#0D5CA8; --green:#2C5B2F; --gold:#b8860b; --busy:#8c2b1e;
+    --p1:#d1453b; --p2:#eb8909; --p3:#246fe0; --p4:#9b917c;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font-family:Georgia, 'Times New Roman', serif; padding-bottom:7.5rem; }
+  .mono { font-family:ui-monospace, Menlo, Consolas, monospace; }
+  header { position:sticky; top:0; background:var(--paper); z-index:5; border-bottom:1px solid var(--line);
+    padding:.6rem .9rem .0; }
+  .hrow { display:flex; align-items:baseline; gap:.6rem; }
+  header h1 { font-size:1.15rem; font-weight:normal; margin:0; }
+  header .heart { color:var(--mit); }
+  #who { margin-left:auto; font-family:ui-monospace, Menlo, monospace; font-size:.8rem; color:var(--soft); }
+  #who b { color:var(--mit); }
+  nav { display:flex; gap:.3rem; padding:.5rem 0 .55rem; }
+  nav button { font-family:inherit; font-size:.92rem; padding:.34rem .85rem; border-radius:99px;
+    border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  nav button.on { background:var(--mit); border-color:var(--mit); color:#fff; }
+  main { padding:.6rem .9rem; max-width:44rem; margin:0 auto; }
+  .sec { margin:.9rem 0 .3rem; font-size:.78rem; color:var(--soft); letter-spacing:.06em;
+    text-transform:uppercase; border-bottom:1px solid var(--line); padding-bottom:.25rem;
+    display:flex; align-items:baseline; gap:.5rem; }
+  .sec .n { margin-left:auto; font-family:ui-monospace, Menlo, monospace; font-size:.72rem; }
+  .sec.over { color:var(--busy); border-color:#e0c4bd; }
+  .task { display:flex; align-items:flex-start; gap:.6rem; padding:.5rem 0; border-bottom:1px dashed var(--line); }
+  .task:last-child { border-bottom:none; }
+  .circ { width:1.45rem; height:1.45rem; border-radius:99px; border:2px solid var(--p4); flex:0 0 auto;
+    margin-top:.1rem; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer;
+    font-size:.85rem; background:transparent; }
+  .circ.pr1 { border-color:var(--p1); background:#faeae8; }
+  .circ.pr2 { border-color:var(--p2); background:#fdf2e2; }
+  .circ.pr3 { border-color:var(--p3); background:#e9f0fb; }
+  .circ.pr1.done, .task.done .circ.pr1 { background:var(--p1); }
+  .circ.pr2.done, .task.done .circ.pr2 { background:var(--p2); }
+  .circ.pr3.done, .task.done .circ.pr3 { background:var(--p3); }
+  .task.done .circ { background:var(--p4); border-color:var(--p4); }
+  .tbody { flex:1; min-width:0; cursor:pointer; }
+  .tcontent { font-size:1rem; line-height:1.3; overflow-wrap:break-word; }
+  .task.done .tcontent { text-decoration:line-through; color:var(--soft); }
+  .tmeta { display:flex; gap:.55rem; align-items:baseline; margin-top:.1rem; font-size:.74rem;
+    font-family:ui-monospace, Menlo, monospace; color:var(--soft); flex-wrap:wrap; }
+  .tmeta .over { color:var(--busy); }
+  .tmeta .today { color:var(--green); }
+  .tmeta .recur { color:var(--chb); }
+  .tmeta .proj { color:var(--soft); font-style:italic; font-family:Georgia, serif; }
+  .empty { color:var(--soft); font-style:italic; padding:.8rem 0; }
+  /* projects tab */
+  .prow { display:flex; align-items:center; gap:.6rem; padding:.65rem .2rem; border-bottom:1px dashed var(--line);
+    cursor:pointer; font-size:1.05rem; }
+  .prow .dot { width:.6rem; height:.6rem; border-radius:99px; background:var(--chb); flex:0 0 auto; }
+  .prow .dot.house { background:var(--green); }
+  .prow .cnt { margin-left:auto; font-family:ui-monospace, Menlo, monospace; font-size:.8rem; color:var(--soft); }
+  .backlink { color:var(--soft); cursor:pointer; font-size:.9rem; display:inline-block; margin:.3rem 0 .2rem; }
+  .btn { font-family:inherit; font-size:.95rem; background:var(--green); color:#fff; border:none;
+    border-radius:.5rem; padding:.5rem 1rem; cursor:pointer; }
+  .btn.ghost { background:none; color:var(--green); border:1px solid var(--green); }
+  .btn.red { background:var(--mit); }
+  .btn.gray { background:none; color:var(--soft); border:1px solid var(--line); }
+  .showdone { border:none; background:none; color:var(--soft); font-family:inherit; cursor:pointer;
+    font-size:.85rem; padding:.5rem 0; font-style:italic; }
+  /* quick add */
+  #qa { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line);
+    padding:.6rem .9rem calc(.9rem + env(safe-area-inset-bottom)); z-index:6; }
+  #qa .row { display:flex; gap:.5rem; max-width:44rem; margin:0 auto; }
+  #qa input { flex:1; font-family:inherit; font-size:1rem; padding:.6rem .7rem; border:1px solid var(--line);
+    border-radius:.6rem; background:#fff; min-width:0; }
+  #qa .hint { max-width:44rem; margin:.3rem auto 0; font-size:.68rem; color:var(--soft);
+    font-family:ui-monospace, Menlo, monospace; }
+  /* edit sheet */
+  .modal-bg { position:fixed; inset:0; background:rgba(35,32,25,.45); display:none;
+    align-items:flex-end; justify-content:center; z-index:10; }
+  .modal-bg.on { display:flex; }
+  .sheet { background:var(--card); border-radius:.9rem .9rem 0 0; padding:1rem 1rem calc(1.2rem + env(safe-area-inset-bottom));
+    width:100%; max-width:44rem; max-height:88vh; overflow-y:auto; }
+  .sheet h2 { font-weight:normal; margin:.1rem 0 .6rem; font-size:1.1rem; }
+  .frow { display:flex; gap:.5rem; align-items:center; margin:.5rem 0; flex-wrap:wrap; }
+  .frow label { width:4.6rem; color:var(--soft); font-size:.85rem; }
+  .frow input, .frow select, .frow textarea { flex:1; font-family:inherit; font-size:.95rem;
+    padding:.45rem .55rem; border:1px solid var(--line); border-radius:.5rem; background:#fff; min-width:0; }
+  .pribtns { display:flex; gap:.35rem; }
+  .pribtns button { font-family:ui-monospace, Menlo, monospace; font-size:.85rem; padding:.35rem .7rem;
+    border-radius:.45rem; border:1.5px solid var(--line); background:none; cursor:pointer; color:var(--soft); }
+  .pribtns button.on1 { border-color:var(--p1); color:var(--p1); background:#faeae8; }
+  .pribtns button.on2 { border-color:var(--p2); color:var(--p2); background:#fdf2e2; }
+  .pribtns button.on3 { border-color:var(--p3); color:var(--p3); background:#e9f0fb; }
+  .pribtns button.on4 { border-color:var(--p4); color:var(--soft); background:#f2ecdd; }
+  textarea#imp-csv { width:100%; min-height:7rem; font-family:ui-monospace, Menlo, monospace; font-size:.78rem; }
+  .muted { color:var(--soft); font-size:.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <h1>B <span class="heart">&hearts;</span> E &mdash; To-dos</h1>
+    <span id="who"></span>
+  </div>
+  <nav>
+    <button data-tab="today" class="on">Today</button>
+    <button data-tab="upcoming">Upcoming</button>
+    <button data-tab="projects">Projects</button>
+  </nav>
+</header>
+<main id="main"></main>
+
+<div id="qa">
+  <div class="row"><input id="qa-in" placeholder="Add a task…" autocomplete="off"><button class="btn red" id="qa-add">Add</button></div>
+  <div class="hint">try: “water plants every mon p2 #Household” · “call insurance tomorrow p1” · “pack list aug 30”</div>
+</div>
+
+<div class="modal-bg" id="edit-bg"><div class="sheet">
+  <h2 id="ed-title">Edit task</h2>
+  <div class="frow"><label>Task</label><input id="ed-content"></div>
+  <div class="frow"><label>Due</label><input type="date" id="ed-due">
+    <button class="btn gray" id="ed-clear-due" style="padding:.35rem .6rem">clear</button></div>
+  <div class="frow"><label>Repeat</label><input id="ed-recur" placeholder="every day · every mon, thu · every month"></div>
+  <div class="frow"><label>Priority</label><span class="pribtns" id="ed-pri">
+    <button data-p="1">p1</button><button data-p="2">p2</button><button data-p="3">p3</button><button data-p="4">p4</button></span></div>
+  <div class="frow"><label>Project</label><select id="ed-proj"></select></div>
+  <div class="frow" style="justify-content:space-between; margin-top:.9rem">
+    <button class="btn gray" id="ed-del">Delete</button>
+    <span><button class="btn ghost" data-close>Cancel</button>
+    <button class="btn red" id="ed-save">Save</button></span>
+  </div>
+</div></div>
+
+<div class="modal-bg" id="imp-bg"><div class="sheet">
+  <h2>Import from Todoist</h2>
+  <div class="muted">In Todoist: open the project → ⋯ menu → Export as CSV (template). Open the file, copy everything, paste here. Priorities, due dates, and “every …” repeats carry over.</div>
+  <textarea id="imp-csv" placeholder="TYPE,CONTENT,DESCRIPTION,PRIORITY,..."></textarea>
+  <div class="frow" style="justify-content:flex-end">
+    <button class="btn ghost" data-close>Cancel</button>
+    <button class="btn red" id="imp-go">Import</button>
+  </div>
+  <div class="muted" id="imp-status"></div>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let S = null, CH = null, tab = 'today', openProject = null, showDone = false, editing = null, edPri = 4;
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtDay(d) {
+  const dt = new Date(d + 'T12:00:00');
+  return dt.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function addD(s, n) { const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+async function load() {
+  const r = await fetch('/api/todo/state');
+  if (r.status === 401) return location.href = '/';
+  S = await r.json();
+  CH = await (await fetch('/api/todo/chores')).json();
+  $('who').innerHTML = `signed in as <b>${S.role === 'b' ? 'Brendan' : 'Emma'}</b>`;
+  render();
+}
+function projName(id) { const p = S.projects.find(p => p.id === id); return p ? p.name : '?'; }
+function projIsHouse(id) { const p = S.projects.find(p => p.id === id); return p && p.person === 'house'; }
+
+function taskRow(t, opts = {}) {
+  const over = t.due && t.due < S.today && !t.done;
+  const dueChip = t.due
+    ? `<span class="${over ? 'over' : t.due === S.today ? 'today' : ''}">${over ? 'overdue · ' : ''}${t.due === S.today ? 'today' : fmtDay(t.due)}</span>` : '';
+  const recur = t.recur ? `<span class="recur">&#8635; ${esc(t.recur)}</span>` : '';
+  const proj = opts.showProject ? `<span class="proj">${esc(projName(t.project_id))}${projIsHouse(t.project_id) ? ' · shared' : ''}</span>` : '';
+  return `<div class="task ${t.done ? 'done' : ''}" data-id="${t.id}">
+    <div class="circ pr${t.priority}" data-act="toggle">${t.done ? '&#10003;' : ''}</div>
+    <div class="tbody" data-act="edit">
+      <div class="tcontent">${esc(t.content)}</div>
+      <div class="tmeta">${dueChip}${recur}${proj}${t.notes ? `<span>&#128196;</span>` : ''}</div>
+    </div></div>`;
+}
+function choreRow(c) {
+  return `<div class="task ${c.done ? 'done' : ''}" data-chore="${c.id}" data-cdate="${c.markDate}">
+    <div class="circ" style="border-color:var(--green); ${c.done ? 'background:var(--green);' : ''}" data-act="chore">${c.done ? '&#10003;' : ''}</div>
+    <div class="tbody"><div class="tcontent">${esc(c.title)}</div>
+    <div class="tmeta"><span class="proj">house chore${c.assignee === 'both' ? ' · both of you' : ''}${c.overdue ? '' : ''}</span>
+    ${c.overdue ? '<span class="over">overdue</span>' : ''}</div></div></div>`;
+}
+
+function render() {
+  const el = $('main');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const open = S.tasks.filter(t => !t.done);
+  if (tab === 'today') {
+    const overdue = open.filter(t => t.due && t.due < S.today);
+    const today = open.filter(t => t.due === S.today);
+    const chores = (CH.chores || []);
+    el.innerHTML =
+      (overdue.length ? `<div class="sec over">Overdue<span class="n">${overdue.length}</span></div>` + overdue.map(t => taskRow(t, { showProject: true })).join('') : '') +
+      `<div class="sec">Today · ${fmtDay(S.today)}<span class="n">${today.length + chores.filter(c => !c.done).length}</span></div>` +
+      (today.map(t => taskRow(t, { showProject: true })).join('') || (chores.length ? '' : '<div class="empty">Nothing due today. Look at you.</div>')) +
+      (chores.length ? chores.map(choreRow).join('') : '');
+  } else if (tab === 'upcoming') {
+    let h = '';
+    for (let i = 1; i <= 7; i++) {
+      const d = addD(S.today, i);
+      const list = open.filter(t => t.due === d);
+      if (list.length) h += `<div class="sec">${fmtDay(d)}</div>` + list.map(t => taskRow(t, { showProject: true })).join('');
+    }
+    const later = open.filter(t => t.due && t.due > addD(S.today, 7));
+    if (later.length) h += `<div class="sec">Later</div>` + later.map(t => taskRow(t, { showProject: true })).join('');
+    const nodate = open.filter(t => !t.due);
+    if (nodate.length) h += `<div class="sec">No date</div>` + nodate.map(t => taskRow(t, { showProject: true })).join('');
+    el.innerHTML = h || '<div class="empty">Nothing scheduled ahead.</div>';
+  } else if (tab === 'projects' && !openProject) {
+    el.innerHTML = S.projects.map(p => {
+      const n = S.tasks.filter(t => t.project_id === p.id && !t.done).length;
+      return `<div class="prow" data-proj="${p.id}"><span class="dot ${p.person === 'house' ? 'house' : ''}"></span>
+        ${esc(p.name)}${p.person === 'house' ? ' <span class="muted">(shared)</span>' : ''}<span class="cnt">${n}</span></div>`;
+    }).join('') + `<div style="margin-top:1rem"><button class="btn ghost" id="np-add">+ New list</button>
+      <button class="btn ghost" id="np-add-shared">+ New shared list</button></div>`;
+  } else if (tab === 'projects' && openProject) {
+    const p = S.projects.find(x => x.id === openProject);
+    const list = S.tasks.filter(t => t.project_id === openProject && !t.done);
+    const done = S.tasks.filter(t => t.project_id === openProject && t.done);
+    el.innerHTML = `<span class="backlink" id="back">&larr; All lists</span>
+      <div class="sec">${esc(p.name)}${p.person === 'house' ? ' (shared)' : ''}<span class="n">${list.length}</span></div>` +
+      (list.map(t => taskRow(t)).join('') || '<div class="empty">Empty list.</div>') +
+      (done.length ? `<button class="showdone" id="toggle-done">${showDone ? 'Hide' : 'Show'} ${done.length} completed</button>` : '') +
+      (showDone ? done.map(t => taskRow(t)).join('') : '') +
+      `<div style="margin-top:1rem"><button class="btn ghost" id="imp-open">Import from Todoist</button></div>`;
+  }
+  wire();
+}
+
+function wire() {
+  document.querySelectorAll('[data-act="toggle"]').forEach(c => c.onclick = async (e) => {
+    e.stopPropagation();
+    const id = c.closest('.task').dataset.id;
+    const t = S.tasks.find(x => x.id == id);
+    await fetch(`/api/todo/tasks/${id}/${t.done ? 'uncomplete' : 'complete'}`, { method: 'POST' });
+    load();
+  });
+  document.querySelectorAll('[data-act="chore"]').forEach(c => c.onclick = async (e) => {
+    e.stopPropagation();
+    const row = c.closest('.task');
+    await fetch(`/api/chores/${row.dataset.chore}/toggle`, { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ date: row.dataset.cdate }) });
+    load();
+  });
+  document.querySelectorAll('[data-act="edit"]').forEach(b => b.onclick = () => {
+    openEdit(Number(b.closest('.task').dataset.id));
+  });
+  document.querySelectorAll('.prow').forEach(r => r.onclick = () => { openProject = Number(r.dataset.proj); showDone = false; render(); });
+  const back = $('back'); if (back) back.onclick = () => { openProject = null; render(); };
+  const td = $('toggle-done'); if (td) td.onclick = () => { showDone = !showDone; render(); };
+  const np = $('np-add'); if (np) np.onclick = () => newProject(false);
+  const nps = $('np-add-shared'); if (nps) nps.onclick = () => newProject(true);
+  const imp = $('imp-open'); if (imp) imp.onclick = () => { $('imp-bg').classList.add('on'); $('imp-status').textContent = ''; };
+}
+async function newProject(shared) {
+  const name = prompt(shared ? 'Name for the shared list:' : 'Name for your new list:');
+  if (!name || !name.trim()) return;
+  await fetch('/api/todo/projects', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: name.trim(), shared }) });
+  load();
+}
+
+// ---------- edit sheet ----------
+function setPri(p) {
+  edPri = p;
+  document.querySelectorAll('#ed-pri button').forEach(b => {
+    b.className = Number(b.dataset.p) === p ? 'on' + p : '';
+  });
+}
+document.querySelectorAll('#ed-pri button').forEach(b => b.onclick = () => setPri(Number(b.dataset.p)));
+function openEdit(id) {
+  editing = S.tasks.find(t => t.id === id);
+  if (!editing) return;
+  $('ed-content').value = editing.content;
+  $('ed-due').value = editing.due || '';
+  $('ed-recur').value = editing.recur || '';
+  setPri(editing.priority);
+  $('ed-proj').innerHTML = S.projects.map(p =>
+    `<option value="${p.id}" ${p.id === editing.project_id ? 'selected' : ''}>${esc(p.name)}${p.person === 'house' ? ' (shared)' : ''}</option>`).join('');
+  $('edit-bg').classList.add('on');
+}
+$('ed-clear-due').onclick = () => { $('ed-due').value = ''; };
+$('ed-save').onclick = async () => {
+  await fetch(`/api/todo/tasks/${editing.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ content: $('ed-content').value.trim(), due: $('ed-due').value,
+      recur: $('ed-recur').value.trim().toLowerCase(), priority: edPri,
+      project_id: Number($('ed-proj').value) }) });
+  $('edit-bg').classList.remove('on');
+  load();
+};
+$('ed-del').onclick = async () => {
+  if (!confirm('Delete this task?')) return;
+  await fetch(`/api/todo/tasks/${editing.id}`, { method:'DELETE' });
+  $('edit-bg').classList.remove('on');
+  load();
+};
+
+// ---------- import ----------
+$('imp-go').onclick = async () => {
+  const r = await fetch('/api/todo/import', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ project_id: openProject, csv: $('imp-csv').value }) });
+  const j = await r.json();
+  $('imp-status').textContent = j.ok ? `Imported ${j.imported} tasks.` : (j.error || 'Import failed.');
+  if (j.ok) { $('imp-csv').value = ''; setTimeout(() => $('imp-bg').classList.remove('on'), 900); load(); }
+};
+
+// ---------- quick add parsing ----------
+const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
+const DAYN = { sun:0, sunday:0, mon:1, monday:1, tue:2, tues:2, tuesday:2, wed:3, weds:3, wednesday:3,
+  thu:4, thur:4, thurs:4, thursday:4, fri:5, friday:5, sat:6, saturday:6 };
+function parseQuick(raw) {
+  let s = ' ' + raw.trim() + ' ';
+  const out = { priority: 4, due: '', recur: '', project_id: null };
+  let m;
+  if ((m = s.match(/\s#(\S+)/))) {
+    const q = m[1].toLowerCase();
+    const p = S.projects.find(p => p.name.toLowerCase().startsWith(q));
+    if (p) { out.project_id = p.id; s = s.replace(m[0], ' '); }
+  }
+  if ((m = s.match(/\sp([1-4])\b/i))) { out.priority = Number(m[1]); s = s.replace(m[0], ' '); }
+  if ((m = s.match(/\severy\s+([a-z0-9, ]+?)(?=\s+p[1-4]\b|\s+#|\s*$)/i))) {
+    out.recur = ('every ' + m[1].trim()).toLowerCase(); out.due = S.today; s = s.replace(m[0], ' ');
+  }
+  if (!out.recur) {
+    if ((m = s.match(/\s(today|tod)\s/i))) { out.due = S.today; s = s.replace(m[0], ' '); }
+    else if ((m = s.match(/\s(tomorrow|tmr|tmrw)\s/i))) { out.due = addD(S.today, 1); s = s.replace(m[0], ' '); }
+    else if ((m = s.match(/\s(next\s+)?(sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s/i))) {
+      const target = DAYN[m[2].toLowerCase()];
+      let d = addD(S.today, 1);
+      while (new Date(d + 'T12:00:00Z').getUTCDay() !== target) d = addD(d, 1);
+      if (m[1]) d = addD(d, 7);
+      out.due = d; s = s.replace(m[0], ' ');
+    }
+    else if ((m = s.match(/\s(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})\s/i))) {
+      const now = new Date(S.today + 'T12:00:00Z');
+      let d = new Date(Date.UTC(now.getUTCFullYear(), MONTHS[m[1].toLowerCase()], Number(m[2]), 12));
+      if (d.toISOString().slice(0, 10) < S.today) d.setUTCFullYear(d.getUTCFullYear() + 1);
+      out.due = d.toISOString().slice(0, 10); s = s.replace(m[0], ' ');
+    }
+    else if ((m = s.match(/\s(\d{1,2})\/(\d{1,2})\s/))) {
+      const now = new Date(S.today + 'T12:00:00Z');
+      let d = new Date(Date.UTC(now.getUTCFullYear(), Number(m[1]) - 1, Number(m[2]), 12));
+      if (d.toISOString().slice(0, 10) < S.today) d.setUTCFullYear(d.getUTCFullYear() + 1);
+      out.due = d.toISOString().slice(0, 10); s = s.replace(m[0], ' ');
+    }
+  }
+  out.content = s.replace(/\s+/g, ' ').trim();
+  return out;
+}
+async function quickAdd() {
+  const raw = $('qa-in').value;
+  if (!raw.trim() || !S) return;
+  const q = parseQuick(raw);
+  if (!q.content) return;
+  if (!q.project_id) {
+    // default project: open project if inside one, else your Inbox, else Household on the shared tab? keep Inbox
+    q.project_id = (tab === 'projects' && openProject) ? openProject
+      : (S.projects.find(p => p.person === S.role && p.name === 'Inbox') || S.projects[0]).id;
+  }
+  await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(q) });
+  $('qa-in').value = '';
+  load();
+}
+$('qa-add').onclick = quickAdd;
+$('qa-in').addEventListener('keydown', e => { if (e.key === 'Enter') quickAdd(); });
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => { tab = b.dataset.tab; openProject = null; render(); });
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal-bg').classList.remove('on'));
+document.querySelectorAll('.modal-bg').forEach(bg => bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('on'); }));
+load();
+setInterval(load, 60 * 1000);
+</script>
+</body>
+</html>

@@ -490,6 +490,11 @@ function renderChores() {
       body: JSON.stringify({ date: m.dataset.d, person: m.dataset.p }) });
     load();
   });
+  if (D.todo) {
+    el.innerHTML += `<div class="muted" style="margin-top:.6rem; border-top:1px solid var(--line); padding-top:.5rem">
+      To-dos due: <span class="mono">B ${D.todo.b}</span> · <span class="mono">E ${D.todo.e}</span>
+      — <a class="plain" href="/todo">open the lists →</a></div>`;
+  }
 }
 function renderWorkouts() {
   const el = $('workouts'), r = D.workouts;
