@@ -469,6 +469,10 @@ app.post('/api/login', (req, res) => {
     `kd_sess=${encodeURIComponent(makeCookie(role))}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`);
   res.json({ role });
 });
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'kd_sess=; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
 app.get('/dash', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.html')));
 
 app.get('/api/dashboard', requireAuth, async (req, res) => {

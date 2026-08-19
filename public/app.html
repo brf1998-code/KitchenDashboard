@@ -308,8 +308,9 @@
     <div id="np-status" class="muted mono" style="font-size:.8rem"></div>
     <div id="ph-list"></div>
   </details>
-  <div class="row" style="margin-top:.9rem">
+  <div class="row" style="margin-top:.9rem; justify-content:space-between">
     <button class="btn ghost" data-close>Close</button>
+    <button class="btn gray-out" id="signout" style="background:none; border:1px solid var(--line); color:var(--soft); font-family:inherit; border-radius:.5rem; padding:.5rem 1rem; cursor:pointer">Sign out</button>
   </div>
 </div></div>
 
@@ -781,6 +782,10 @@ $('nc-add').onclick = async () => {
   loadCfg(); load();
 };
 
+$('signout').onclick = async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/';
+};
 document.querySelectorAll('[data-close]').forEach(b =>
   b.onclick = () => b.closest('.modal-bg').classList.remove('on'));
 document.querySelectorAll('.modal-bg').forEach(bg =>

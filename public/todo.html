@@ -161,7 +161,13 @@ async function load() {
   if (r.status === 401) return location.href = '/';
   S = await r.json();
   CH = await (await fetch('/api/todo/chores')).json();
-  $('who').innerHTML = `signed in as <b>${S.role === 'b' ? 'Brendan' : 'Emma'}</b>`;
+  $('who').innerHTML = `signed in as <b>${S.role === 'b' ? 'Brendan' : 'Emma'}</b>
+    · <a href="#" id="signout" style="color:var(--soft)">switch</a>`;
+  $('signout').onclick = async (e) => {
+    e.preventDefault();
+    await fetch('/api/logout', { method: 'POST' });
+    location.href = '/';
+  };
   render();
 }
 function projName(id) { const p = S.projects.find(p => p.id === id); return p ? p.name : '?'; }
