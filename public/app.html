@@ -47,6 +47,19 @@
   }
   @media (max-width:640px) { main { grid-template-columns:1fr; grid-template-areas:
       "weekend" "mbta" "weather" "chores" "workouts" "photos"; } }
+  /* phones: compact header that never scrolls sideways */
+  @media (max-width:760px) {
+    header { flex-wrap:nowrap; padding:.55rem .8rem .25rem; gap:.6rem; align-items:center; }
+    #clock { font-size:1.5rem; }
+    #clock .ampm { font-size:.8rem; }
+    #date { font-size:.85rem; }
+    #quip { display:none; }
+    #wxnow { font-size:.95rem; white-space:nowrap; }
+    #wxnow .t { font-size:1.1rem; }
+    #wxnow .s { display:none; }
+    .gear { width:2.2rem; height:2.2rem; font-size:1rem; flex:0 0 auto; }
+  }
+  @media (max-width:420px) { #date { display:none; } }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
     padding:.8rem .95rem; min-height:9rem; overflow:hidden; }
