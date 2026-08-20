@@ -275,6 +275,14 @@
   <div id="fb-list"></div>
 </div></div>
 
+<div class="modal-bg" id="sched-bg"><div class="modal" style="max-width:28rem">
+  <h2>Emma's schedule</h2>
+  <div id="sched-list" style="max-height:70vh; overflow-y:auto"></div>
+  <div class="row" style="margin-top:.8rem">
+    <button class="btn ghost" data-close>Close</button>
+  </div>
+</div></div>
+
 <div class="modal-bg" id="cfg-bg"><div class="modal">
   <h2>Settings</h2>
   <details class="sec" open>
@@ -399,6 +407,26 @@ function renderShift() {
   };
   $('shift').innerHTML = row('Today', e.today) + row('Tomorrow', e.tomorrow);
 }
+// tap the shift card → full scrollable schedule
+$('card-shift').style.cursor = 'pointer';
+$('card-shift').onclick = async () => {
+  $('sched-bg').classList.add('on');
+  const j = await (await fetch('/api/shifts')).json();
+  let lastMonth = '', h = '';
+  for (const s of j.shifts) {
+    const d = new Date(s.date + 'T12:00:00');
+    const month = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (month !== lastMonth) { lastMonth = month; h += `<div class="subhead">${month}</div>`; }
+    const isToday = s.date === j.today;
+    h += `<div class="sh-row" ${isToday ? 'id="sched-today" style="background:#fdf3d7; border-radius:.4rem; padding:.3rem .4rem"' : ''}>
+      <span class="sh-when" style="min-width:5.4rem">${d.toLocaleDateString('en-US', { weekday:'short', month:'numeric', day:'numeric' })}</span>
+      <span class="sh-label k-${esc(s.kind)}" style="font-size:.95rem">${esc(s.label)}${s.kind === 'night' ? ' &#9789;' : ''}</span>
+      ${s.time ? `<span class="sh-time">${esc(s.time)}</span>` : ''}</div>`;
+  }
+  $('sched-list').innerHTML = h || '<div class="muted">No schedule loaded.</div>';
+  const t = $('sched-today');
+  if (t) t.scrollIntoView({ block: 'center' });
+};
 function renderWeekend() {
   const el = $('weekend'), r = D.weekend;
   if (!r.ok) return el.innerHTML = `<span class="muted">Weekend site unreachable.</span>`;

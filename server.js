@@ -838,6 +838,9 @@ app.post('/api/todo/import', requireAuth, (req, res) => {
 
 // Emma's shift schedule: bulk import replaces matching dates.
 // Body: { shifts: [{date:"YYYY-MM-DD", label, time?, kind?}], clearFrom?: "YYYY-MM-DD" }
+app.get('/api/shifts', requireAuth, (req, res) => {
+  res.json({ today: localISO(), shifts: db.prepare('SELECT * FROM emma_shifts ORDER BY date').all() });
+});
 app.post('/api/shifts', requireAuth, (req, res) => {
   const b = req.body || {};
   if (b.clearFrom && /^\d{4}-\d{2}-\d{2}$/.test(String(b.clearFrom)))
