@@ -469,6 +469,19 @@ app.post('/api/login', (req, res) => {
     `kd_sess=${encodeURIComponent(makeCookie(role))}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax`);
   res.json({ role });
 });
+app.use('/icons', express.static(path.join(__dirname, 'public', 'icons'), { maxAge: '7d' }));
+app.get('/manifest.webmanifest', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json({
+    name: 'B ♥ E — 34', short_name: '34',
+    start_url: '/todo', display: 'standalone',
+    background_color: '#faf6ef', theme_color: '#faf6ef',
+    icons: [
+      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+  });
+});
 app.post('/api/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'kd_sess=; Path=/; Max-Age=0');
   res.json({ ok: true });
