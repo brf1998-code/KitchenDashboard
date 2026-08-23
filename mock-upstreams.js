@@ -51,6 +51,10 @@ app.get('/predictions', (req, res) => {
   res.json({ data: offsets.map((m, i) => ({ id: 'p' + i, attributes: { departure_time: iso(mins(m)) } })) });
 });
 app.get('/schedules', (req, res) => res.json({ data: [] }));
+app.get('/alerts', (req, res) => res.json({ data: [
+  { id: 'a1', attributes: { severity: 5, effect: 'DELAY',
+    header: 'Red Line: delays of up to 15 minutes due to a signal problem at Harvard' } },
+] }));
 
 // --- NWS ---
 const base = 'http://localhost:4000';
@@ -86,6 +90,14 @@ app.get('/wo/api/:weekId', (req, res) => {
         { n: 'Split Squat', r: 10, s: 3 }, { n: 'Calf Raise', r: 12, s: 3 }] },
   ] });
 });
+
+// --- Ticketmaster Discovery ---
+app.get('/discovery/v2/events.json', (req, res) => res.json({ _embedded: { events: [
+  { name: 'Lake Street Dive', dates: { start: { localDate: '2026-08-21', localTime: '19:30:00' } },
+    _embedded: { venues: [{ name: 'MGM Music Hall at Fenway' }] } },
+  { name: 'Comedy Night', dates: { start: { localDate: '2026-08-21', localTime: '20:00:00' } },
+    _embedded: { venues: [{ name: 'Laugh Boston' }] } },
+] } }));
 
 // --- Nominatim reverse geocode ---
 app.get('/reverse', (req, res) => res.json({

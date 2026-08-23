@@ -154,6 +154,8 @@
   .mb-later { font-size:.74rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace;
     white-space:nowrap; margin-left:.25rem; }
   .sched-note { font-size:.66rem; color:var(--soft); font-family:ui-monospace, Menlo, monospace; }
+  .mb-alert { background:#fdf0dc; border:1px solid #e8cf8e; color:#7a5c14; border-radius:.45rem;
+    padding:.35rem .55rem; font-size:.8rem; margin-bottom:.45rem; line-height:1.3; }
 
   /* chores */
   .ch-row { display:flex; align-items:center; gap:.55rem; padding:.34rem 0; border-bottom:1px dashed var(--line);
@@ -217,6 +219,74 @@
   #quip { font-size:.92rem; color:var(--soft); font-style:italic; max-width:24rem;
     text-align:center; line-height:1.25; transition:opacity .8s ease; }
 
+  /* grocery */
+  #card-grocery { display:none; border-top:3px solid var(--green); }
+  .gr-row { display:flex; align-items:center; gap:.55rem; padding:.3rem 0; border-bottom:1px dashed var(--line); cursor:pointer; }
+  .gr-row:last-of-type { border-bottom:none; }
+  .gr-check { width:1.4rem; height:1.4rem; border:2px solid var(--line); border-radius:99px; flex:0 0 auto; }
+  .gr-title { font-size:.98rem; }
+  .gr-cols { column-count:2; column-gap:1.2rem; }
+  .gr-cols .gr-row { break-inside:avoid; }
+
+  /* date idea bar (evenings) */
+  #datebar { display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:.7rem;
+    background:var(--card); border:1px solid var(--line); border-left:4px solid var(--mit);
+    border-radius:.6rem; padding:.5rem .9rem; font-size:.95rem; max-width:44rem;
+    box-shadow:0 2px 10px rgba(35,32,25,.15); z-index:4; }
+  #datebar .lbl { font-family:ui-monospace, Menlo, monospace; font-size:.7rem; color:var(--mit);
+    letter-spacing:.06em; text-transform:uppercase; margin-right:.5rem; }
+  body.m-evening #datebar.has-events { display:block; }
+
+  /* time-of-day layouts: morning leads with trains + shifts + workouts */
+  @media (min-width:1151px) {
+    body.m-morning main {
+      grid-template-areas: "mbta weekend weather photos" "workouts weekend chores photos";
+      grid-template-columns:1.15fr 1.15fr 1fr 1fr;
+    }
+    body.m-morning #card-mbta { grid-area:mbta; }
+    body.m-morning #card-workouts { grid-area:workouts; }
+    body.m-morning #card-weather { grid-area:weather; }
+    body.m-morning #card-chores { grid-area:chores; }
+  }
+  body.m-morning .mb-min { font-size:1.15rem; padding:.3rem .55rem; }
+  body.m-morning #card-shift .sh-label { font-size:1.2rem; }
+  /* evening: weekend + groceries + chores lead; workouts rests */
+  body.m-evening #card-workouts { display:none; }
+  body.m-evening #card-grocery { display:block; grid-area:workouts; }
+
+  /* warm night theme (auto 8 PM – 6 AM) — dimmer paper, same bones */
+  body.night { --paper:#211d17; --card:#2a251d; --line:#403829; --ink:#e6ddca; --soft:#a2967d;
+    --chb:#7fa8d9; --green:#8fba8f; --gold:#d3ab4f; --busy:#d98a7c; }
+  body.night .mb-min, body.night .wx-h, body.night .syncbox code { background:#393226; }
+  body.night .pill.open { background:#393226; }
+  body.night .pill.holiday { background:#3d3423; color:#d3ab4f; border-color:#5a4c2c; }
+  body.night .pill.planning { background:#2e2e44; color:#b9b9e8; border-color:#4a4a6e; }
+  body.night .mb-alert { background:#3d3423; border-color:#5a4c2c; color:#d3ab4f; }
+  body.night .polaroid { background:#8f877a; border-color:#403829; }
+  body.night .polaroid .cap { color:#3a352c; }
+  body.night .avdot.free { background:#2c3a2c; }
+  body.night .avdot.busy { background:#442e2a; }
+  body.night .ch-who.b { background:#442e2a; } body.night .ch-who.e { background:#2a3546; }
+  body.night .wk-mini-dates { color:var(--ink); }
+  body.night .mark { color:#6b6046; }
+  body.night #datebar { border-left-color:#d98a7c; }
+  body.night .gear { background:var(--card); }
+
+  /* ambient art mode after 30 min idle */
+  #ambient { position:fixed; inset:0; background:#14110c; z-index:50; display:none; }
+  #ambient.on { display:block; }
+  .amb-ph { position:absolute; inset:0; }
+  .amb-ph img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
+    opacity:0; transition:opacity 2.5s ease; }
+  .amb-ph img.show { opacity:1; }
+  .amb-overlay { position:absolute; left:0; right:0; bottom:0; padding:1.2rem 2rem 1.4rem;
+    background:linear-gradient(transparent, rgba(10,8,5,.75)); color:#f0e9d8; }
+  .amb-clock { font-size:3.2rem; line-height:1; }
+  .amb-clock .ampm { font-size:1.2rem; opacity:.7; }
+  .amb-sub { font-size:1.05rem; opacity:.8; margin-top:.3rem; font-style:italic; }
+  .amb-cap { position:absolute; right:2rem; bottom:1.6rem; font-style:italic; opacity:.75;
+    font-family:'Comic Sans MS', 'Segoe Print', Georgia, cursive; }
+
   /* feedback fab + modals */
   .fab { position:fixed; right:1rem; bottom:1rem; background:var(--mit); color:#fff; border:none;
     border-radius:99px; padding:.75rem 1.2rem; font-family:inherit; font-size:1rem; cursor:pointer;
@@ -273,6 +343,7 @@
   <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
   <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
   <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
+  <section class="card" id="card-grocery"><h2>Groceries</h2><div id="grocery" class="muted">Loading…</div></section>
   <section class="card" id="card-photos">
     <div class="polaroid" id="polaroid0"><div class="ph" id="ph0"></div><div class="cap" id="cap0"></div></div>
     <div class="polaroid" id="polaroid1"><div class="ph" id="ph1"></div><div class="cap" id="cap1"></div></div>
@@ -280,6 +351,17 @@
 </main>
 <button class="fab" id="fab">&#10022; Idea</button>
 <div class="offline" id="offline">Reconnecting…</div>
+
+<div id="datebar"></div>
+
+<div id="ambient">
+  <div class="amb-ph" id="amb-ph"></div>
+  <div class="amb-overlay">
+    <div class="amb-clock" id="amb-clock"></div>
+    <div class="amb-sub" id="amb-sub"></div>
+    <div class="amb-cap" id="amb-cap"></div>
+  </div>
+</div>
 
 <div class="modal-bg" id="fb-bg"><div class="modal">
   <h2>Ideas + feedback</h2>
@@ -400,6 +482,12 @@ function avDots(av) {
 function daysUntil(dateStr) {
   return Math.max(0, Math.ceil((new Date(dateStr + 'T00:00:00') - Date.now()) / 86400000));
 }
+function countdownChip(days) {
+  if (days <= 1) return `<span class="wk-count mono" style="color:var(--mit); font-size:.95rem">&#127881; ${days === 0 ? 'today!' : 'tomorrow!'}</span>`;
+  if (days <= 7) return `<span class="wk-count mono" style="color:var(--mit); font-size:.9rem">&#127880; ${days} days!</span>`;
+  if (days <= 30) return `<span class="wk-count mono" style="font-size:.85rem">&#10024; ${days} days</span>`;
+  return `<span class="wk-count mono">${days}d</span>`;
+}
 function compactRow(w, pin) {
   const name = w.title || w.destination;
   const d = daysUntil(w.start);
@@ -410,7 +498,7 @@ function compactRow(w, pin) {
     ${name ? `<span class="wk-mini-title">${esc(name)}</span>` : ''}
     ${w.label ? `<span class="pill holiday">${esc(w.label)}</span>` : ''}
     ${avDots(w.av || {})}
-    ${pin ? `<span class="wk-count mono">${d}d</span>` : ''}
+    ${pin ? countdownChip(d) : ''}
   </div>`;
 }
 function renderShift() {
@@ -478,7 +566,7 @@ function renderMbta() {
   const el = $('mbta'), r = D.mbta;
   if (!r.ok) return el.innerHTML = `<span class="muted">MBTA unavailable.</span>`;
   const age = Math.floor((Date.now() - fetchedAt) / 60000);
-  el.innerHTML = r.data.map(f => {
+  const row = f => {
     const mins = f.mins.map(m => Math.max(0, m - age));
     const chips = mins.length
       ? mins.map(m => `<span class="mb-min"><b>${m === 0 ? 'now' : m}</b>${m === 0 ? '' : 'm'}</span>`).join('')
@@ -495,7 +583,10 @@ function renderMbta() {
         </div>
       </div>
       <div class="mb-times">${chips}${later}</div></div>`;
-  }).join('');
+  };
+  const alerts = (r.data.alerts || []).map(a =>
+    `<div class="mb-alert">&#9888; ${esc(a.header)}</div>`).join('');
+  el.innerHTML = alerts + (r.data.feeds || []).map(row).join('');
 }
 function whoChip(a) {
   const label = a === 'b' ? 'B' : a === 'e' ? 'E' : 'B+E';
@@ -539,10 +630,31 @@ function renderChores() {
     load();
   });
   if (D.todo) {
-    el.innerHTML += `<div class="muted" style="margin-top:.6rem; border-top:1px solid var(--line); padding-top:.5rem">
+    const s = D.streaks || {};
+    const streakLine = (s.b || s.e) ? (() => {
+      const part = (who, x) => x && (x.streak >= 2 || x.monthCount)
+        ? `${who} ${x.monthCount}${x.streak >= 2 ? ` <span style="color:var(--gold)">(&#128293;${x.streak}d)</span>` : ''}` : `${who} ${x ? x.monthCount : 0}`;
+      return `<div class="muted" style="margin-top:.5rem">This month: <span class="mono">${part('B', s.b)}</span> · <span class="mono">${part('E', s.e)}</span> chores done</div>`;
+    })() : '';
+    el.innerHTML += streakLine + `<div class="muted" style="margin-top:.45rem; border-top:1px solid var(--line); padding-top:.5rem">
       To-dos due: <span class="mono">B ${D.todo.b}</span> · <span class="mono">E ${D.todo.e}</span>
       — <a class="plain" href="/todo">open the lists →</a></div>`;
   }
+}
+function renderGrocery() {
+  const el = $('grocery'), g = D.grocery;
+  if (!g || !g.items.length) {
+    return el.innerHTML = `<span class="muted">List's empty. Add things from your phone the second you notice them.</span>
+      <div style="margin-top:.5rem"><a class="plain" href="/todo">Open Groceries →</a></div>`;
+  }
+  el.innerHTML = `<div class="${g.items.length > 7 ? 'gr-cols' : ''}">` + g.items.map(i => `
+    <div class="gr-row" data-gr="${i.id}"><div class="gr-check"></div>
+      <div class="gr-title">${esc(i.content)}</div></div>`).join('') + `</div>` +
+    (g.total > g.items.length ? `<div class="muted" style="margin-top:.3rem">+ ${g.total - g.items.length} more</div>` : '');
+  el.querySelectorAll('.gr-row').forEach(r => r.onclick = async () => {
+    await fetch(`/api/todo/tasks/${r.dataset.gr}/complete`, { method:'POST' });
+    load();
+  });
 }
 function renderWorkouts() {
   const el = $('workouts'), r = D.workouts;
@@ -688,6 +800,86 @@ function tickQuip() {
 }
 setInterval(tickQuip, 30 * 1000);
 
+// ---------- time-of-day modes + night theme ----------
+function applyMode() {
+  // ?mode=morning|day|evening and ?night=1|0 override the clock (handy for previewing)
+  const q = new URLSearchParams(location.search);
+  const h = new Date().getHours();
+  const mode = q.get('mode') ? 'm-' + q.get('mode')
+    : (h >= 5 && h < 11 ? 'm-morning' : h >= 15 && h < 23 ? 'm-evening' : 'm-day');
+  document.body.classList.toggle('m-morning', mode === 'm-morning');
+  document.body.classList.toggle('m-evening', mode === 'm-evening');
+  document.body.classList.toggle('night',
+    q.has('night') ? q.get('night') === '1' : (h >= 20 || h < 6));
+}
+applyMode();
+setInterval(applyMode, 60 * 1000);
+
+// ---------- tonight around Boston (live via Ticketmaster; hidden when empty) ----------
+function renderEvents() {
+  const evs = (D && D.events) || [];
+  $('datebar').classList.toggle('has-events', evs.length > 0);
+  if (!evs.length) return;
+  $('datebar').innerHTML = `<span class="lbl">Tonight around town</span>` +
+    evs.map(e => `${esc(e.name)}${e.venue ? ` <span class="muted">· ${esc(e.venue)}${e.time ? ' · ' + esc(e.time) : ''}</span>` : ''}`)
+      .join('<span class="muted"> &nbsp;|&nbsp; </span>');
+}
+
+// ---------- ambient art mode (30 min idle) ----------
+let lastActivity = Date.now(), ambientOn = false, ambTimer = null;
+function ambientClock() {
+  const now = new Date();
+  const h24 = now.getHours(), m = String(now.getMinutes()).padStart(2, '0');
+  const h = ((h24 + 11) % 12) + 1;
+  $('amb-clock').innerHTML = `${h}:${m}<span class="ampm"> ${h24 < 12 ? 'AM' : 'PM'}</span>`;
+  let sub = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  try {
+    const wx = D.weather.ok ? `${D.weather.data.hours[0].temp}°` : '';
+    const em = D.emma && (new Date().getHours() >= 17 ? D.emma.tomorrow : D.emma.today);
+    if (wx) sub += ` · ${wx}`;
+    if (em) sub += ` · Emma ${new Date().getHours() >= 17 ? 'tomorrow' : 'today'}: ${em.label}`;
+  } catch (e) {}
+  $('amb-sub').textContent = sub;
+}
+function ambientPhoto() {
+  const p = randomPhoto();
+  if (!p) return;
+  const holder = $('amb-ph');
+  const img = document.createElement('img');
+  img.src = '/img/photos/' + encodeURIComponent(p.file);
+  img.onload = () => {
+    holder.appendChild(img);
+    requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('show')));
+    setTimeout(() => holder.querySelectorAll('img').forEach(o => { if (o !== img) o.remove(); }), 2800);
+    $('amb-cap').textContent = p.caption || '';
+  };
+  img.onerror = () => img.remove();
+}
+function enterAmbient() {
+  if (ambientOn || !phPool.length) return;
+  ambientOn = true;
+  $('ambient').classList.add('on');
+  ambientPhoto(); ambientClock();
+  ambTimer = setInterval(() => { ambientClock(); }, 1000);
+  ambientPhotoTimer = setInterval(ambientPhoto, 45 * 1000);
+}
+let ambientPhotoTimer = null;
+function exitAmbient() {
+  if (!ambientOn) return;
+  ambientOn = false;
+  $('ambient').classList.remove('on');
+  clearInterval(ambTimer); clearInterval(ambientPhotoTimer);
+}
+function activity() {
+  lastActivity = Date.now();
+  exitAmbient();
+}
+['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach(ev =>
+  window.addEventListener(ev, activity, { passive: true }));
+setInterval(() => {
+  if (!ambientOn && Date.now() - lastActivity > 30 * 60 * 1000) enterAmbient();
+}, 30 * 1000);
+
 // ---------- load loop ----------
 async function load() {
   try {
@@ -697,7 +889,7 @@ async function load() {
     if (!fbPerson) fbPerson = D.role;
     $('offline').classList.remove('on');
     renderShift(); renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
-    syncPhotos(); setFbWho();
+    renderGrocery(); renderEvents(); syncPhotos(); setFbWho();
     if (!$('quip').textContent) tickQuip();
   } catch (e) { $('offline').classList.add('on'); }
 }

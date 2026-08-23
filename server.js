@@ -14,9 +14,6 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const BRENDAN_PIN = process.env.BRENDAN_PIN || '1998';
 const EMMA_PIN = process.env.EMMA_PIN || '2024';
 const SEED_VERSION = 1;
-// Bump when Emma's rotation is re-transcribed; rewrites emma_shifts from SHIFT_RESEED_FROM on.
-const SHIFT_SEED_VERSION = 2;
-const SHIFT_RESEED_FROM = '2026-11-01';
 
 // Upstream services + data sources
 const WEEKEND_URL = process.env.WEEKEND_URL || 'https://weekend.finnoperations.com';
@@ -29,6 +26,8 @@ const LAT = process.env.LAT || '42.3653';   // Central Square, Cambridge
 const LON = process.env.LON || '-71.1035';
 const NWS_UA = 'KitchenDashboard (personal kiosk, brf1998@gmail.com)';
 const GEO_BASE = process.env.GEO_BASE || 'https://nominatim.openstreetmap.org';
+const EVENTS_BASE = process.env.EVENTS_BASE || 'https://app.ticketmaster.com';
+const TICKETMASTER_KEY = process.env.TICKETMASTER_KEY || '';
 
 // MBTA feeds: label, route badge, query. Stop ids verified against api-v3.mbta.com.
 const MBTA_FEEDS = [
@@ -97,6 +96,7 @@ db.exec(`
   const hasP = db.prepare('SELECT id FROM todo_projects WHERE person = ? AND name = ?');
   const insP = db.prepare('INSERT INTO todo_projects (person, name, pos) VALUES (?, ?, ?)');
   if (!hasP.get('house', 'Household')) insP.run('house', 'Household', 0);
+  if (!hasP.get('house', 'Groceries')) insP.run('house', 'Groceries', 0);
   if (!hasP.get('b', 'Inbox')) insP.run('b', 'Inbox', 1);
   if (!hasP.get('e', 'Inbox')) insP.run('e', 'Inbox', 1);
 }
@@ -159,78 +159,16 @@ const EMMA_SHIFTS = [
   ['2026-10-29', 'Retreat', '8a–5p', 'day'], ['2026-10-30', 'ELX', '8a–5p', 'day'],
   ['2026-10-31', 'ST Day', '7a–5p', 'day'], ['2026-11-01', 'ST Day', '7a–5p', 'day'],
   ['2026-11-02', 'Dot House Clinic', '8a–5p', 'day'],
-  // Nov 2026 – Feb 2027, transcribed from the Amion screenshots dropped Aug 23 2026.
-  ['2026-11-03', 'ELX', '8a–5p', 'day'], ['2026-11-04', 'ELX', '8a–5p', 'day'],
-  ['2026-11-05', 'ELX', '8a–5p', 'day'], ['2026-11-06', 'ELX', '8a–5p', 'day'],
-  ['2026-11-07', 'Off', '', 'off'], ['2026-11-08', 'Off', '', 'off'],
-  ['2026-11-09', 'ELX', '8a–5p', 'day'], ['2026-11-10', 'ELX', '8a–5p', 'day'],
-  ['2026-11-11', 'ELX', '8a–5p', 'day'], ['2026-11-12', 'ELX', '8a–5p', 'day'],
-  ['2026-11-13', 'ELX', '8a–5p', 'day'],
-  ['2026-11-14', 'Jeopardy 24h', '6a–6a', 'day'], ['2026-11-15', 'Jeopardy 24h', '6a–6a', 'day'],
-  ['2026-11-16', 'ELX', '8a–5p', 'day'],
-  ['2026-11-17', 'MSICU', '6a–6p', 'day'], ['2026-11-18', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-19', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-20', 'Off', '', 'off'], ['2026-11-21', 'Off', '', 'off'],
-  ['2026-11-22', 'MSICU', '6a–6p', 'day'], ['2026-11-23', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-24', 'MSICU', '6a–6p', 'day'], ['2026-11-25', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-26', 'MSICU', '6a–6p', 'day'], ['2026-11-27', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-28', 'MSICU', '6a–6p', 'day'], ['2026-11-29', 'MSICU', '6a–6p', 'day'],
-  ['2026-11-30', 'MSICU', '6a–6p', 'day'],
-  ['2026-12-01', 'Mental Health', '8a–5p', 'day'], ['2026-12-02', 'Mental Health', '8a–5p', 'day'],
-  ['2026-12-03', 'Mental Health', '8a–5p', 'day'], ['2026-12-04', 'Mental Health', '8a–5p', 'day'],
-  ['2026-12-05', 'Off Weekend', '', 'off'], ['2026-12-06', 'Off Weekend', '', 'off'],
-  ['2026-12-07', 'Dot House Clinic', '8a–5p', 'day'],
-  ['2026-12-08', 'Mental Health · Jeopardy', '8a–5p', 'day'],
-  ['2026-12-09', 'Mental Health · Jeopardy', '8a–5p', 'day'],
-  ['2026-12-10', 'Mental Health · Jeopardy', '8a–5p', 'day'],
-  ['2026-12-11', 'Mental Health · Jeopardy', '8a–5p', 'day'],
-  ['2026-12-12', 'Jeopardy 24h', '6a–6a', 'day'], ['2026-12-13', 'Jeopardy 24h', '6a–6a', 'day'],
-  ['2026-12-14', 'Dot House Clinic · Jeopardy', '8a–5p', 'day'],
-  ['2026-12-15', 'BMC NICU nights', '5p–8a', 'night'],
-  ['2026-12-16', 'BMC NICU nights', '5p–8a', 'night'],
-  ['2026-12-17', 'BMC NICU nights', '5p–8a', 'night'],
-  ['2026-12-18', 'Off', '', 'off'], ['2026-12-19', 'Off', '', 'off'],
-  ['2026-12-20', 'Off', '', 'off'],
-  ['2026-12-21', 'BMC NICU', '7a–5p', 'day'], ['2026-12-22', 'BMC NICU', '7a–5p', 'day'],
-  ['2026-12-23', 'BMC NICU', '7a–5p', 'day'], ['2026-12-24', 'BMC NICU', '7a–5p', 'day'],
-  ['2026-12-25', 'BMC NICU', '7a–5p', 'day'],
-  ['2026-12-26', 'BMC NICU Day', '6:30a–5p', 'day'], ['2026-12-27', 'BMC NICU Day', '6:30a–5p', 'day'],
-  ['2026-12-28', 'BMC NICU', '7a–5p', 'day'],
-  ['2026-12-29', 'Heme/Rheum', '6:30a–5p', 'day'],
-  ['2026-12-30', 'Holiday Off', '', 'off'], ['2026-12-31', 'Holiday Off', '', 'off'],
-  ['2027-01-01', 'Holiday Off', '', 'off'], ['2027-01-02', 'Holiday Off', '', 'off'],
-  ['2027-01-03', 'Holiday Off', '', 'off'],
-  ['2027-01-04', 'Heme/Rheum', '6:30a–5p', 'day'], ['2027-01-05', 'Heme/Rheum', '6:30a–5p', 'day'],
-  ['2027-01-06', 'Heme/Rheum', '6:30a–5p', 'day'], ['2027-01-07', 'Heme/Rheum', '6:30a–5p', 'day'],
-  ['2027-01-08', 'Heme/Rheum', '6:30a–5p', 'day'],
-  ['2027-01-09', 'Heme/Rheum Day', '6:30a–5:30p', 'day'],
-  ['2027-01-10', 'Heme/Rheum Day', '6:30a–5:30p', 'day'],
-  ['2027-01-11', 'Heme/Rheum', '6:30a–5p', 'day'],
-  ['2027-01-12', 'Vacation', '', 'vacation'],
-  // Amion only prints the block header on 1/12; blocks have run Tue-to-Tue all year and
-  // ERB starts 1/26, so the rest of the vacation block is inferred (flagged with ?).
-  ['2027-01-13', 'Vacation?', '', 'vacation'], ['2027-01-14', 'Vacation?', '', 'vacation'],
-  ['2027-01-15', 'Vacation?', '', 'vacation'], ['2027-01-16', 'Vacation?', '', 'vacation'],
-  ['2027-01-17', 'Vacation?', '', 'vacation'], ['2027-01-18', 'Vacation?', '', 'vacation'],
-  ['2027-01-19', 'Vacation?', '', 'vacation'], ['2027-01-20', 'Vacation?', '', 'vacation'],
-  ['2027-01-21', 'Vacation?', '', 'vacation'], ['2027-01-22', 'Vacation?', '', 'vacation'],
-  ['2027-01-23', 'Vacation?', '', 'vacation'], ['2027-01-24', 'Vacation?', '', 'vacation'],
-  ['2027-01-25', 'Vacation?', '', 'vacation'],
-  ['2027-01-26', 'ERB block starts', '', 'day'],
-  ['2027-01-30', 'Off Weekend', '', 'off'], ['2027-01-31', 'Off Weekend', '', 'off'],
+  ['2026-11-03', 'ELX', '8a–5p', 'day'],
+  ['2026-11-17', 'MSICU block starts', '', 'day'],
+  ['2026-11-20', 'Off Night?', '5p–5a', 'off'],
+  ['2026-11-21', 'Off Weekend?', '', 'off'], ['2026-11-22', 'Off Weekend?', '', 'off'],
+  ['2026-12-01', 'Mental Health Block', '8a–5p', 'day'],
+  ['2026-12-04', 'Off Night', '5p–5a', 'off'], ['2026-12-05', 'Off Weekend', '', 'off'],
 ];
 {
   const insS = db.prepare('INSERT OR IGNORE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
   for (const s of EMMA_SHIFTS) insS.run(...s);
-  // A fresh transcription supersedes whatever placeholder rows an older seed left behind,
-  // so bump SHIFT_SEED_VERSION and the Nov-onward window gets rewritten once on boot.
-  const cur = db.prepare("SELECT value FROM settings WHERE key='shift_seed_version'").get();
-  if (!cur || Number(cur.value) < SHIFT_SEED_VERSION) {
-    const rep = db.prepare('INSERT OR REPLACE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
-    for (const s of EMMA_SHIFTS) if (s[0] >= SHIFT_RESEED_FROM) rep.run(...s);
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
-      .run('shift_seed_version', String(SHIFT_SEED_VERSION));
-  }
 }
 try {
   db.exec(`INSERT OR IGNORE INTO chore_marks (chore_id, date, person, done_at)
@@ -379,9 +317,20 @@ async function fetchMbta() {
         new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(d.iso)));
       out.push({ key: f.key, badge: f.badge, color: f.color, label: f.label, sub: f.sub, mins, later, live });
     }));
+    // service alerts for our three routes
+    let alerts = [];
+    try {
+      const j = await getJSON(`${MBTA_BASE}/alerts?filter[route]=Red,1,47&filter[datetime]=NOW&page[limit]=10`, headers);
+      alerts = (j.data || [])
+        .map(a => ({ severity: a.attributes.severity || 0, effect: a.attributes.effect || '',
+          header: String(a.attributes.header || '').slice(0, 140) }))
+        .filter(a => a.severity >= 4 && a.header)
+        .sort((a, b) => b.severity - a.severity)
+        .slice(0, 2);
+    } catch (e) { /* no alerts is fine */ }
     // keep feed order stable
     out.sort((a, b) => MBTA_FEEDS.findIndex(f => f.key === a.key) - MBTA_FEEDS.findIndex(f => f.key === b.key));
-    return out;
+    return { feeds: out, alerts };
   });
 }
 
@@ -479,6 +428,38 @@ async function fetchWorkouts() {
   });
 }
 
+// ---------- tonight's events (Ticketmaster Discovery, needs free TICKETMASTER_KEY) ----------
+async function fetchEvents() {
+  if (!TICKETMASTER_KEY) return [];
+  return cached('events', 3 * 60 * 60 * 1000, async () => {
+    const now = new Date();
+    const start = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    // through ~midnight Eastern
+    const endD = new Date(now); endD.setUTCDate(endD.getUTCDate() + 1); endD.setUTCHours(3, 59, 59, 0);
+    const end = endD.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const url = `${EVENTS_BASE}/discovery/v2/events.json?apikey=${TICKETMASTER_KEY}` +
+      `&latlong=${LAT},${LON}&radius=8&unit=miles&startDateTime=${start}&endDateTime=${end}` +
+      `&sort=date,asc&size=12`;
+    const j = await getJSON(url);
+    const seen = new Set();
+    return (((j._embedded || {}).events) || [])
+      .map(e => {
+        const venue = (((e._embedded || {}).venues) || [])[0] || {};
+        let time = '';
+        try {
+          const lt = (e.dates.start.localTime || '').slice(0, 5);
+          if (lt) {
+            const [hh, mm] = lt.split(':').map(Number);
+            time = `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`;
+          }
+        } catch (err) {}
+        return { name: e.name, venue: venue.name || '', time };
+      })
+      .filter(e => { const k = e.name.slice(0, 30); if (seen.has(k)) return false; seen.add(k); return true; })
+      .slice(0, 3);
+  });
+}
+
 // ---------- chores ----------
 function choreAssignee(c, dateStr) {
   if (c.assignee !== 'alt') return c.assignee;
@@ -568,8 +549,9 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   const now = new Date();
   const today = localISO(now), dow = localDow(now);
   const wrap = p => p.then(data => ({ ok: true, data })).catch(e => ({ ok: false, error: String(e.message || e) }));
-  const [weather, mbta, weekend, workouts] = await Promise.all([
+  const [weather, mbta, weekend, workouts, events] = await Promise.all([
     wrap(fetchWeather()), wrap(fetchMbta()), wrap(fetchWeekend()), wrap(fetchWorkouts()),
+    wrap(fetchEvents()),
   ]);
   // week strip for chores: today + next 6 days
   const week = [];
@@ -581,12 +563,32 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
   res.json({
     role: req.role, serverTime: now.toISOString(), today,
     weather, mbta, weekend, workouts,
+    events: events.ok ? events.data : [],
     chores: { today: choresFor(today, dow, true), week },
     emma: (() => {
       const tomorrow = localISO(new Date(now.getTime() + 86400000));
       const get = d => db.prepare('SELECT * FROM emma_shifts WHERE date = ?').get(d) || null;
       const range = db.prepare('SELECT MIN(date) a, MAX(date) b, COUNT(*) c FROM emma_shifts').get();
       return { today: get(today), tomorrow: get(tomorrow), range };
+    })(),
+    grocery: (() => {
+      const gp = db.prepare("SELECT id FROM todo_projects WHERE person = 'house' AND name = 'Groceries'").get();
+      if (!gp) return { items: [], total: 0, project_id: null };
+      const items = db.prepare('SELECT id, content, priority FROM todo_tasks WHERE project_id = ? AND done = 0 ORDER BY pos, id LIMIT 14').all(gp.id);
+      const total = db.prepare('SELECT COUNT(*) c FROM todo_tasks WHERE project_id = ? AND done = 0').get(gp.id).c;
+      return { items, total, project_id: gp.id };
+    })(),
+    streaks: (() => {
+      const rows = db.prepare("SELECT date, person FROM chore_marks WHERE date >= ? ORDER BY date").all(addDaysISO(today, -60));
+      const calc = person => {
+        const days = new Set(rows.filter(r => r.person === person).map(r => r.date));
+        let streak = 0, d = days.has(today) ? today : addDaysISO(today, -1);
+        while (days.has(d)) { streak++; d = addDaysISO(d, -1); }
+        const month = today.slice(0, 7);
+        const monthCount = rows.filter(r => r.person === person && r.date.startsWith(month)).length;
+        return { streak, monthCount };
+      };
+      return { b: calc('b'), e: calc('e') };
     })(),
     todo: (() => {
       const count = role => db.prepare(`SELECT COUNT(*) c FROM todo_tasks t
