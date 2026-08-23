@@ -14,6 +14,9 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 const BRENDAN_PIN = process.env.BRENDAN_PIN || '1998';
 const EMMA_PIN = process.env.EMMA_PIN || '2024';
 const SEED_VERSION = 1;
+// Bump when Emma's rotation is re-transcribed; rewrites emma_shifts from SHIFT_RESEED_FROM on.
+const SHIFT_SEED_VERSION = 2;
+const SHIFT_RESEED_FROM = '2026-11-01';
 
 // Upstream services + data sources
 const WEEKEND_URL = process.env.WEEKEND_URL || 'https://weekend.finnoperations.com';
@@ -156,16 +159,78 @@ const EMMA_SHIFTS = [
   ['2026-10-29', 'Retreat', '8a–5p', 'day'], ['2026-10-30', 'ELX', '8a–5p', 'day'],
   ['2026-10-31', 'ST Day', '7a–5p', 'day'], ['2026-11-01', 'ST Day', '7a–5p', 'day'],
   ['2026-11-02', 'Dot House Clinic', '8a–5p', 'day'],
-  ['2026-11-03', 'ELX', '8a–5p', 'day'],
-  ['2026-11-17', 'MSICU block starts', '', 'day'],
-  ['2026-11-20', 'Off Night?', '5p–5a', 'off'],
-  ['2026-11-21', 'Off Weekend?', '', 'off'], ['2026-11-22', 'Off Weekend?', '', 'off'],
-  ['2026-12-01', 'Mental Health Block', '8a–5p', 'day'],
-  ['2026-12-04', 'Off Night', '5p–5a', 'off'], ['2026-12-05', 'Off Weekend', '', 'off'],
+  // Nov 2026 – Feb 2027, transcribed from the Amion screenshots dropped Aug 23 2026.
+  ['2026-11-03', 'ELX', '8a–5p', 'day'], ['2026-11-04', 'ELX', '8a–5p', 'day'],
+  ['2026-11-05', 'ELX', '8a–5p', 'day'], ['2026-11-06', 'ELX', '8a–5p', 'day'],
+  ['2026-11-07', 'Off', '', 'off'], ['2026-11-08', 'Off', '', 'off'],
+  ['2026-11-09', 'ELX', '8a–5p', 'day'], ['2026-11-10', 'ELX', '8a–5p', 'day'],
+  ['2026-11-11', 'ELX', '8a–5p', 'day'], ['2026-11-12', 'ELX', '8a–5p', 'day'],
+  ['2026-11-13', 'ELX', '8a–5p', 'day'],
+  ['2026-11-14', 'Jeopardy 24h', '6a–6a', 'day'], ['2026-11-15', 'Jeopardy 24h', '6a–6a', 'day'],
+  ['2026-11-16', 'ELX', '8a–5p', 'day'],
+  ['2026-11-17', 'MSICU', '6a–6p', 'day'], ['2026-11-18', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-19', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-20', 'Off', '', 'off'], ['2026-11-21', 'Off', '', 'off'],
+  ['2026-11-22', 'MSICU', '6a–6p', 'day'], ['2026-11-23', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-24', 'MSICU', '6a–6p', 'day'], ['2026-11-25', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-26', 'MSICU', '6a–6p', 'day'], ['2026-11-27', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-28', 'MSICU', '6a–6p', 'day'], ['2026-11-29', 'MSICU', '6a–6p', 'day'],
+  ['2026-11-30', 'MSICU', '6a–6p', 'day'],
+  ['2026-12-01', 'Mental Health', '8a–5p', 'day'], ['2026-12-02', 'Mental Health', '8a–5p', 'day'],
+  ['2026-12-03', 'Mental Health', '8a–5p', 'day'], ['2026-12-04', 'Mental Health', '8a–5p', 'day'],
+  ['2026-12-05', 'Off Weekend', '', 'off'], ['2026-12-06', 'Off Weekend', '', 'off'],
+  ['2026-12-07', 'Dot House Clinic', '8a–5p', 'day'],
+  ['2026-12-08', 'Mental Health · Jeopardy', '8a–5p', 'day'],
+  ['2026-12-09', 'Mental Health · Jeopardy', '8a–5p', 'day'],
+  ['2026-12-10', 'Mental Health · Jeopardy', '8a–5p', 'day'],
+  ['2026-12-11', 'Mental Health · Jeopardy', '8a–5p', 'day'],
+  ['2026-12-12', 'Jeopardy 24h', '6a–6a', 'day'], ['2026-12-13', 'Jeopardy 24h', '6a–6a', 'day'],
+  ['2026-12-14', 'Dot House Clinic · Jeopardy', '8a–5p', 'day'],
+  ['2026-12-15', 'BMC NICU nights', '5p–8a', 'night'],
+  ['2026-12-16', 'BMC NICU nights', '5p–8a', 'night'],
+  ['2026-12-17', 'BMC NICU nights', '5p–8a', 'night'],
+  ['2026-12-18', 'Off', '', 'off'], ['2026-12-19', 'Off', '', 'off'],
+  ['2026-12-20', 'Off', '', 'off'],
+  ['2026-12-21', 'BMC NICU', '7a–5p', 'day'], ['2026-12-22', 'BMC NICU', '7a–5p', 'day'],
+  ['2026-12-23', 'BMC NICU', '7a–5p', 'day'], ['2026-12-24', 'BMC NICU', '7a–5p', 'day'],
+  ['2026-12-25', 'BMC NICU', '7a–5p', 'day'],
+  ['2026-12-26', 'BMC NICU Day', '6:30a–5p', 'day'], ['2026-12-27', 'BMC NICU Day', '6:30a–5p', 'day'],
+  ['2026-12-28', 'BMC NICU', '7a–5p', 'day'],
+  ['2026-12-29', 'Heme/Rheum', '6:30a–5p', 'day'],
+  ['2026-12-30', 'Holiday Off', '', 'off'], ['2026-12-31', 'Holiday Off', '', 'off'],
+  ['2027-01-01', 'Holiday Off', '', 'off'], ['2027-01-02', 'Holiday Off', '', 'off'],
+  ['2027-01-03', 'Holiday Off', '', 'off'],
+  ['2027-01-04', 'Heme/Rheum', '6:30a–5p', 'day'], ['2027-01-05', 'Heme/Rheum', '6:30a–5p', 'day'],
+  ['2027-01-06', 'Heme/Rheum', '6:30a–5p', 'day'], ['2027-01-07', 'Heme/Rheum', '6:30a–5p', 'day'],
+  ['2027-01-08', 'Heme/Rheum', '6:30a–5p', 'day'],
+  ['2027-01-09', 'Heme/Rheum Day', '6:30a–5:30p', 'day'],
+  ['2027-01-10', 'Heme/Rheum Day', '6:30a–5:30p', 'day'],
+  ['2027-01-11', 'Heme/Rheum', '6:30a–5p', 'day'],
+  ['2027-01-12', 'Vacation', '', 'vacation'],
+  // Amion only prints the block header on 1/12; blocks have run Tue-to-Tue all year and
+  // ERB starts 1/26, so the rest of the vacation block is inferred (flagged with ?).
+  ['2027-01-13', 'Vacation?', '', 'vacation'], ['2027-01-14', 'Vacation?', '', 'vacation'],
+  ['2027-01-15', 'Vacation?', '', 'vacation'], ['2027-01-16', 'Vacation?', '', 'vacation'],
+  ['2027-01-17', 'Vacation?', '', 'vacation'], ['2027-01-18', 'Vacation?', '', 'vacation'],
+  ['2027-01-19', 'Vacation?', '', 'vacation'], ['2027-01-20', 'Vacation?', '', 'vacation'],
+  ['2027-01-21', 'Vacation?', '', 'vacation'], ['2027-01-22', 'Vacation?', '', 'vacation'],
+  ['2027-01-23', 'Vacation?', '', 'vacation'], ['2027-01-24', 'Vacation?', '', 'vacation'],
+  ['2027-01-25', 'Vacation?', '', 'vacation'],
+  ['2027-01-26', 'ERB block starts', '', 'day'],
+  ['2027-01-30', 'Off Weekend', '', 'off'], ['2027-01-31', 'Off Weekend', '', 'off'],
 ];
 {
   const insS = db.prepare('INSERT OR IGNORE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
   for (const s of EMMA_SHIFTS) insS.run(...s);
+  // A fresh transcription supersedes whatever placeholder rows an older seed left behind,
+  // so bump SHIFT_SEED_VERSION and the Nov-onward window gets rewritten once on boot.
+  const cur = db.prepare("SELECT value FROM settings WHERE key='shift_seed_version'").get();
+  if (!cur || Number(cur.value) < SHIFT_SEED_VERSION) {
+    const rep = db.prepare('INSERT OR REPLACE INTO emma_shifts (date, label, time, kind) VALUES (?, ?, ?, ?)');
+    for (const s of EMMA_SHIFTS) if (s[0] >= SHIFT_RESEED_FROM) rep.run(...s);
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+      .run('shift_seed_version', String(SHIFT_SEED_VERSION));
+  }
 }
 try {
   db.exec(`INSERT OR IGNORE INTO chore_marks (chore_id, date, person, done_at)
@@ -470,17 +535,28 @@ app.post('/api/login', (req, res) => {
   res.json({ role });
 });
 app.use('/icons', express.static(path.join(__dirname, 'public', 'icons'), { maxAge: '7d' }));
-app.get('/manifest.webmanifest', (req, res) => {
-  res.setHeader('Content-Type', 'application/manifest+json');
-  res.json({
-    name: 'B ♥ E — 34', short_name: '34',
-    start_url: '/todo', display: 'standalone',
+function manifest(name, shortName, startUrl) {
+  return {
+    name, short_name: shortName, start_url: startUrl, display: 'standalone',
     background_color: '#faf6ef', theme_color: '#faf6ef',
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-  });
+  };
+}
+app.get('/manifest-dash.webmanifest', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json(manifest('B ♥ E — 34 Kitchen', '34', '/dash'));
+});
+app.get('/manifest-todo.webmanifest', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json(manifest('B ♥ E — 34 To-dos', '34 To-dos', '/todo'));
+});
+// legacy path from v12 keeps working, pointed at the dashboard
+app.get('/manifest.webmanifest', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.json(manifest('B ♥ E — 34 Kitchen', '34', '/dash'));
 });
 app.post('/api/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'kd_sess=; Path=/; Max-Age=0');
