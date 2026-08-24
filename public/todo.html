@@ -100,6 +100,12 @@
   .chore-form { display:flex; gap:.35rem; flex-wrap:wrap; margin:.6rem 0 .9rem; align-items:center; }
   .chore-form input[type=text] { flex:1; min-width:9rem; font-family:inherit; font-size:.95rem;
     padding:.45rem .55rem; border:1px solid var(--line); border-radius:.5rem; }
+  .hc-date, #hce-due { min-width:10rem; max-width:none; font-size:.95rem; padding:.4rem .5rem; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:99px; overflow:hidden; }
+  .seg button { font-family:inherit; border:none; background:transparent; padding:.35rem .85rem;
+    font-size:.88rem; cursor:pointer; color:var(--soft); }
+  .seg button.on { background:var(--green); color:#fff; }
+  .chore-form .seg button { padding:.35rem .8rem; }
   /* edit sheet */
   .modal-bg { position:fixed; inset:0; background:rgba(35,32,25,.45); display:none;
     align-items:flex-end; justify-content:center; z-index:10; }
@@ -174,6 +180,30 @@
     <button class="btn gray" id="ed-del">Delete</button>
     <span><button class="btn ghost" data-close>Cancel</button>
     <button class="btn red" id="ed-save">Save</button></span>
+  </div>
+</div></div>
+
+<div class="modal-bg" id="hce-bg"><div class="sheet">
+  <h2>Edit chore</h2>
+  <div class="frow"><label>Chore</label><input id="hce-title"></div>
+  <div class="frow"><label>Type</label><span class="seg" id="hce-mode">
+    <button data-m="rep">Repeating</button><button data-m="once">One-time</button></span></div>
+  <div class="frow"><label>When</label>
+    <select id="hce-every">
+      <option value="daily">every day</option>
+      <option value="0">every Sunday</option><option value="1">every Monday</option>
+      <option value="2">every Tuesday</option><option value="3">every Wednesday</option>
+      <option value="4">every Thursday</option><option value="5">every Friday</option>
+      <option value="6">every Saturday</option>
+    </select>
+    <input type="date" id="hce-due" style="display:none"></div>
+  <div class="frow"><label>Who</label>
+    <select id="hce-who"><option value="alt">alternate</option><option value="b">Brendan</option>
+      <option value="e">Emma</option><option value="both">both of us</option></select></div>
+  <div class="frow" style="justify-content:space-between; margin-top:.9rem">
+    <button class="btn gray" id="hce-del">Delete</button>
+    <span><button class="btn ghost" data-close>Cancel</button>
+    <button class="btn red" id="hce-save">Save</button></span>
   </div>
 </div></div>
 
@@ -277,20 +307,26 @@ function render() {
         done.map(t => `<div class="gr-restore" data-restore="${t.id}">&#8634; ${esc(t.content)}</div>`).join('') : '');
   } else if (tab === 'chores') {
     el.innerHTML = `<div class="sec">House chore schedule</div>
-      <div class="muted" style="margin:.4rem 0">These generate the daily checklist on the kitchen dashboard and in Today. "Alternate" swaps between you two (daily chores flip each day, weekly ones each week).</div>
+      <div class="muted" style="margin:.4rem 0">These feed the daily checklist on the kitchen dashboard and in Today. Tap a chore to edit it.</div>
       <div class="chore-form">
         <input type="text" id="hc-title" placeholder="New chore">
-        <select id="hc-cad" class="qa-sel"><option value="weekly">weekly</option>
-          <option value="daily">daily</option><option value="once">one time</option></select>
-        <select id="hc-day" class="qa-sel"><option value="0">Sun</option><option value="1">Mon</option>
-          <option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option>
-          <option value="5">Fri</option><option value="6">Sat</option></select>
-        <input type="date" id="hc-due" class="qa-sel" style="display:none">
+        <span class="seg" id="hc-mode">
+          <button data-m="rep" class="on">Repeating</button><button data-m="once">One-time</button></span>
+        <select id="hc-every" class="qa-sel">
+          <option value="daily">every day</option>
+          <option value="0">every Sunday</option><option value="1">every Monday</option>
+          <option value="2">every Tuesday</option><option value="3">every Wednesday</option>
+          <option value="4">every Thursday</option><option value="5">every Friday</option>
+          <option value="6">every Saturday</option>
+        </select>
+        <input type="date" id="hc-due" class="qa-sel hc-date" style="display:none">
         <select id="hc-who" class="qa-sel"><option value="alt">alternate</option><option value="b">Brendan</option>
-          <option value="e">Emma</option><option value="both">both</option></select>
+          <option value="e">Emma</option><option value="both">both of us</option></select>
         <button class="btn" id="hc-add">Add</button>
       </div>
+      <div class="muted" style="font-size:.8rem; margin:-.3rem 0 .7rem">"Alternate" swaps who's on it automatically — daily chores flip each day, weekly ones each week.</div>
       <div id="hc-list" class="muted">Loading…</div>`;
+    bindChoreForm();
     loadChoreSchedule();
   } else if (tab === 'projects' && !openProject) {
     el.innerHTML = S.projects.map(p => {
@@ -343,38 +379,101 @@ function wire() {
   const nps = $('np-add-shared'); if (nps) nps.onclick = () => newProject(true);
   const imp = $('imp-open'); if (imp) imp.onclick = () => { $('imp-bg').classList.add('on'); $('imp-status').textContent = ''; };
 }
-async function loadChoreSchedule() {
-  const j = await (await fetch('/api/chores')).json();
-  const WHO = { alt: 'alternate', b: 'Brendan', e: 'Emma', both: 'both' };
-  $('hc-list').innerHTML = j.chores.map(c => `
-    <div class="task"><div class="tbody">
-      <div class="tcontent">${esc(c.title)}</div>
-      <div class="tmeta"><span>${c.cadence === 'daily' ? 'every day' : c.cadence === 'once' ? 'once · ' + (c.due || '?') : 'every ' + DOWS[c.day]}</span>
-        <span class="proj">${WHO[c.assignee] || c.assignee}</span></div>
-    </div><button class="showdone" data-hcdel="${c.id}" style="padding:.2rem .5rem">&#10005;</button></div>`).join('')
-    || '<div class="empty">No chores set up.</div>';
-  $('hc-list').querySelectorAll('[data-hcdel]').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this chore from the schedule?')) return;
-    await fetch(`/api/chores/${b.dataset.hcdel}`, { method: 'DELETE' });
-    loadChoreSchedule();
-  });
-  $('hc-cad').onchange = () => {
-    const v = $('hc-cad').value;
-    $('hc-day').style.display = v === 'weekly' ? '' : 'none';
-    $('hc-due').style.display = v === 'once' ? '' : 'none';
-  };
+// -- chore schedule logic --
+// A chore is either REPEATING (cadence 'daily', or 'weekly' + a day 0-6) or
+// ONE-TIME (cadence 'once' + a due date). The form and the edit sheet both use
+// a mode toggle so the two shapes never share ambiguous fields.
+let hcMode = 'rep', HC = [], editingChore = null;
+function choreMeta(c) {
+  return c.cadence === 'daily' ? 'every day'
+    : c.cadence === 'once' ? 'one-time · ' + (c.due || 'no date')
+    : 'every ' + ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][c.day];
+}
+function setHcMode(m) {
+  hcMode = m;
+  document.querySelectorAll('#hc-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('hc-every').style.display = m === 'rep' ? '' : 'none';
+  $('hc-due').style.display = m === 'once' ? '' : 'none';
+  if (m === 'once' && !$('hc-due').value) $('hc-due').value = S ? S.today : '';
+}
+function bindChoreForm() {
+  document.querySelectorAll('#hc-mode button').forEach(b => b.onclick = () => setHcMode(b.dataset.m));
+  setHcMode('rep');
   $('hc-add').onclick = async () => {
     const title = $('hc-title').value.trim();
-    if (!title) return;
-    const cadence = $('hc-cad').value;
-    if (cadence === 'once' && !$('hc-due').value) { alert('Pick a date for the one-time chore.'); return; }
+    if (!title) { $('hc-title').focus(); return; }
+    let payload = { title, assignee: $('hc-who').value };
+    if (hcMode === 'rep') {
+      const v = $('hc-every').value;
+      payload = v === 'daily' ? { ...payload, cadence: 'daily', day: -1 }
+        : { ...payload, cadence: 'weekly', day: Number(v) };
+    } else {
+      if (!$('hc-due').value) { alert('Pick the date it needs doing.'); return; }
+      payload = { ...payload, cadence: 'once', due: $('hc-due').value };
+    }
     await fetch('/api/chores', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ title, cadence, day: Number($('hc-day').value),
-        assignee: $('hc-who').value, due: $('hc-due').value }) });
+      body: JSON.stringify(payload) });
     $('hc-title').value = ''; $('hc-due').value = '';
     loadChoreSchedule();
   };
 }
+async function loadChoreSchedule() {
+  const j = await (await fetch('/api/chores')).json();
+  HC = j.chores;
+  const WHO = { alt: 'alternate', b: 'Brendan', e: 'Emma', both: 'both of us' };
+  $('hc-list').innerHTML = HC.map(c => `
+    <div class="task" data-hc="${c.id}" style="cursor:pointer"><div class="tbody">
+      <div class="tcontent">${esc(c.title)}</div>
+      <div class="tmeta"><span class="${c.cadence === 'once' ? 'today' : 'recur'}">${choreMeta(c)}</span>
+        <span class="proj">${WHO[c.assignee] || c.assignee}</span></div>
+    </div><span class="muted" style="font-size:1.1rem">&rsaquo;</span></div>`).join('')
+    || '<div class="empty">No chores set up.</div>';
+  $('hc-list').querySelectorAll('[data-hc]').forEach(row => row.onclick = () => openChoreEdit(Number(row.dataset.hc)));
+}
+function openChoreEdit(id) {
+  editingChore = HC.find(c => c.id === id);
+  if (!editingChore) return;
+  const c = editingChore;
+  $('hce-title').value = c.title;
+  $('hce-who').value = c.assignee;
+  const m = c.cadence === 'once' ? 'once' : 'rep';
+  setHceMode(m);
+  if (m === 'rep') $('hce-every').value = c.cadence === 'daily' ? 'daily' : String(c.day);
+  else $('hce-due').value = c.due || (S ? S.today : '');
+  $('hce-bg').classList.add('on');
+}
+function setHceMode(m) {
+  $('hce-bg').dataset.mode = m;
+  document.querySelectorAll('#hce-mode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('hce-every').style.display = m === 'rep' ? '' : 'none';
+  $('hce-due').style.display = m === 'once' ? '' : 'none';
+  if (m === 'once' && !$('hce-due').value) $('hce-due').value = S ? S.today : '';
+}
+document.querySelectorAll('#hce-mode button').forEach(b => b.onclick = () => setHceMode(b.dataset.m));
+$('hce-save').onclick = async () => {
+  const title = $('hce-title').value.trim();
+  if (!title || !editingChore) return;
+  const m = $('hce-bg').dataset.mode;
+  let payload = { title, assignee: $('hce-who').value };
+  if (m === 'rep') {
+    const v = $('hce-every').value;
+    payload = v === 'daily' ? { ...payload, cadence: 'daily', day: -1, due: '' }
+      : { ...payload, cadence: 'weekly', day: Number(v), due: '' };
+  } else {
+    if (!$('hce-due').value) { alert('Pick the date it needs doing.'); return; }
+    payload = { ...payload, cadence: 'once', due: $('hce-due').value };
+  }
+  await fetch(`/api/chores/${editingChore.id}`, { method:'PATCH',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  $('hce-bg').classList.remove('on');
+  loadChoreSchedule();
+};
+$('hce-del').onclick = async () => {
+  if (!editingChore || !confirm('Remove this chore from the schedule?')) return;
+  await fetch(`/api/chores/${editingChore.id}`, { method:'DELETE' });
+  $('hce-bg').classList.remove('on');
+  loadChoreSchedule();
+};
 async function newProject(shared) {
   const name = prompt(shared ? 'Name for the shared list:' : 'Name for your new list:');
   if (!name || !name.trim()) return;

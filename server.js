@@ -620,6 +620,8 @@ app.patch('/api/chores/:id', requireAuth, (req, res) => {
     db.prepare(`UPDATE chores SET ${f} = ? WHERE id = ?`).run(String(req.body[f]), req.params.id);
   for (const f of ['day', 'pos', 'active']) if (f in req.body)
     db.prepare(`UPDATE chores SET ${f} = ? WHERE id = ?`).run(Number(req.body[f]), req.params.id);
+  if ('due' in req.body && (/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.due)) || req.body.due === ''))
+    db.prepare('UPDATE chores SET due = ? WHERE id = ?').run(String(req.body.due), req.params.id);
   res.json({ ok: true });
 });
 app.delete('/api/chores/:id', requireAuth, (req, res) => {
