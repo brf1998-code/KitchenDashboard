@@ -787,6 +787,19 @@ app.get('/api/todo/chores', requireAuth, (req, res) => {
   const list = choresFor(today, dow, true).filter(c => c.assignee === req.role || c.assignee === 'both');
   res.json({ date: today, role: req.role, chores: list });
 });
+// grocery memory: what you've bought before, most-bought first, minus what's already listed
+app.get('/api/todo/grocery-suggest', requireAuth, (req, res) => {
+  const gp = db.prepare("SELECT id FROM todo_projects WHERE person = 'house' AND name = 'Groceries'").get();
+  if (!gp) return res.json({ suggestions: [] });
+  const rows = db.prepare(`SELECT content, COUNT(*) n, MAX(done_at) last FROM todo_tasks
+    WHERE project_id = ? AND done = 1 GROUP BY LOWER(TRIM(content)) ORDER BY n DESC, last DESC LIMIT 40`)
+    .all(gp.id);
+  const open = new Set(db.prepare('SELECT LOWER(TRIM(content)) c FROM todo_tasks WHERE project_id = ? AND done = 0')
+    .all(gp.id).map(r => r.c));
+  res.json({ project_id: gp.id,
+    suggestions: rows.filter(r => !open.has(r.content.trim().toLowerCase()))
+      .map(r => ({ content: r.content.trim(), n: r.n })) });
+});
 app.get('/api/todo/state', requireAuth, (req, res) => {
   const projects = todoProjectsFor(req.role);
   const ids = projects.map(p => p.id);

@@ -61,6 +61,13 @@
     .gear { width:2.2rem; height:2.2rem; font-size:1rem; flex:0 0 auto; }
   }
   @media (max-width:420px) { #date { display:none; } }
+  /* kiosk-size screens: lock everything to the viewport — cards clip instead of pushing the page */
+  @media (min-width:1151px) {
+    html, body { height:100%; overflow:hidden; }
+    main { height:calc(100vh - 4.9rem); min-height:0;
+      grid-template-rows:minmax(0,1fr) minmax(0,1.1fr); }
+    .card { min-height:0; }
+  }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
     padding:.8rem .95rem; min-height:9rem; overflow:hidden; }
@@ -291,6 +298,9 @@
   .fab { position:fixed; right:1rem; bottom:1rem; background:var(--mit); color:#fff; border:none;
     border-radius:99px; padding:.75rem 1.2rem; font-family:inherit; font-size:1rem; cursor:pointer;
     box-shadow:0 2px 8px rgba(35,32,25,.25); }
+  .chip-add { font-family:inherit; font-size:.88rem; border:1px solid #c9d8c2; background:#e8efe4;
+    color:var(--green); border-radius:99px; padding:.3rem .75rem; cursor:pointer; }
+  body.night .chip-add { background:#2c3a2c; border-color:#3d4f3d; }
   .modal-bg { position:fixed; inset:0; background:rgba(35,32,25,.45); display:none;
     align-items:center; justify-content:center; padding:1rem; z-index:10; }
   .modal-bg.on { display:flex; }
@@ -349,7 +359,25 @@
     <div class="polaroid" id="polaroid1"><div class="ph" id="ph1"></div><div class="cap" id="cap1"></div></div>
   </section>
 </main>
+<button class="fab" id="fab-add" style="right:auto; left:1rem; background:var(--green)">+ Add</button>
 <button class="fab" id="fab">&#10022; Idea</button>
+
+<div class="modal-bg" id="add-bg"><div class="modal">
+  <h2>Quick add</h2>
+  <div><span class="seg" id="add-kind">
+    <button data-k="grocery" class="on" style="background:var(--green); color:#fff">Groceries</button>
+    <button data-k="todo">To-do</button></span>
+    <select id="add-proj" style="display:none; font-family:inherit; font-size:.95rem; padding:.4rem .55rem; border:1px solid var(--line); border-radius:.5rem; margin-left:.5rem"></select>
+  </div>
+  <input id="add-in" list="gr-dl" placeholder="milk, eggs, bread…" autocomplete="off"
+    style="width:100%; font-family:inherit; font-size:1.05rem; padding:.6rem .7rem; border:1px solid var(--line); border-radius:.6rem; margin-top:.6rem; background:#fff; color:var(--ink)">
+  <datalist id="gr-dl"></datalist>
+  <div id="add-chips" style="display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem"></div>
+  <div class="row" style="margin-top:.7rem">
+    <button class="btn" id="add-go">Add</button>
+    <button class="btn ghost" data-close>Close</button>
+  </div>
+</div></div>
 <div class="offline" id="offline">Reconnecting…</div>
 
 <div id="datebar"></div>
@@ -597,7 +625,8 @@ function renderChores() {
   if (!list.length) return el.innerHTML = '<span class="muted">Nothing scheduled today.</span>';
   el.innerHTML = list.map(c => `
     <div class="ch-row ${c.done ? 'done' : ''}">
-      <div class="ch-check">${c.done ? '&#10003;' : ''}</div>
+      <div class="ch-check" data-ch="${c.id}" data-d="${c.markDate}"
+        data-p="${c.assignee === 'both' ? '' : c.assignee}" style="cursor:pointer">${c.done ? '&#10003;' : ''}</div>
       <div class="ch-title">${esc(c.title)}${c.overdue ? ' <span class="overdue">overdue</span>' : ''}
         ${c.cadence === 'once' ? ' <span class="oncechip">one-time</span>' : ''}</div>
       <span class="mark ${c.by.b ? 'on-b' : ''} ${c.assignee === 'b' || c.assignee === 'both' ? 'want-b' : ''}"
@@ -622,11 +651,11 @@ function renderChores() {
           data-ch="${c.id}" data-p="e" data-d="${c.date}">E</span>
       </div>`).join('');
   }
-  el.querySelectorAll('.mark').forEach(m => m.onclick = async (e) => {
+  el.querySelectorAll('.mark, .ch-check').forEach(m => m.onclick = async (e) => {
     e.stopPropagation();
     await fetch(`/api/chores/${m.dataset.ch}/toggle`, { method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ date: m.dataset.d, person: m.dataset.p }) });
+      body: JSON.stringify({ date: m.dataset.d, person: m.dataset.p || D.role }) });
     load();
   });
   if (D.todo) {
@@ -896,6 +925,66 @@ async function load() {
 load();
 setInterval(load, 45 * 1000);
 setInterval(() => { if (D && D.mbta && D.mbta.ok) renderMbta(); }, 20 * 1000);
+
+// ---------- quick add (groceries / to-dos) ----------
+let addKind = 'grocery', grProjectId = null;
+$('fab-add').onclick = async () => {
+  $('add-bg').classList.add('on');
+  $('add-in').value = '';
+  setAddKind('grocery');
+  refreshSuggest();
+  const st = await (await fetch('/api/todo/state')).json();
+  grProjectId = (st.projects.find(p => p.person === 'house' && p.name === 'Groceries') || {}).id;
+  $('add-proj').innerHTML = st.projects
+    .filter(p => !(p.person === 'house' && p.name === 'Groceries'))
+    .map(p => `<option value="${p.id}">${esc(p.name)}${p.person === 'house' ? ' (shared)' : p.person === 'b' ? ' (B)' : ' (E)'}</option>`).join('');
+  setTimeout(() => $('add-in').focus(), 100);
+};
+function setAddKind(k) {
+  addKind = k;
+  document.querySelectorAll('#add-kind button').forEach(b => {
+    const on = b.dataset.k === k;
+    b.classList.toggle('on', on);
+    b.style.background = on ? (k === 'grocery' ? 'var(--green)' : 'var(--mit)') : 'transparent';
+    b.style.color = on ? '#fff' : '';
+  });
+  $('add-proj').style.display = k === 'todo' ? '' : 'none';
+  $('add-chips').style.display = k === 'grocery' ? 'flex' : 'none';
+  $('add-in').placeholder = k === 'grocery' ? 'milk, eggs, bread…' : 'One to-do at a time…';
+  $('add-in').setAttribute('list', k === 'grocery' ? 'gr-dl' : '');
+}
+document.querySelectorAll('#add-kind button').forEach(b => b.onclick = () => setAddKind(b.dataset.k));
+async function refreshSuggest() {
+  try {
+    const j = await (await fetch('/api/todo/grocery-suggest')).json();
+    $('gr-dl').innerHTML = (j.suggestions || []).map(s => `<option value="${esc(s.content)}">`).join('');
+    $('add-chips').innerHTML = (j.suggestions || []).slice(0, 8).map(s =>
+      `<button class="chip-add" data-add="${esc(s.content)}">+ ${esc(s.content)}</button>`).join('');
+    $('add-chips').querySelectorAll('[data-add]').forEach(c => c.onclick = async () => {
+      await addGrocery([c.dataset.add]);
+      refreshSuggest(); load();
+    });
+  } catch (e) {}
+}
+async function addGrocery(items) {
+  if (!grProjectId) return;
+  for (const content of items)
+    await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ project_id: grProjectId, content }) });
+}
+$('add-go').onclick = async () => {
+  const raw = $('add-in').value.trim();
+  if (!raw) return;
+  if (addKind === 'grocery') {
+    await addGrocery(raw.split(',').map(s => s.trim()).filter(Boolean));
+  } else {
+    await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ project_id: Number($('add-proj').value), content: raw }) });
+  }
+  $('add-in').value = '';
+  refreshSuggest(); load();
+};
+$('add-in').addEventListener('keydown', e => { if (e.key === 'Enter') $('add-go').onclick(); });
 
 // ---------- feedback ----------
 function setFbWho() {
