@@ -208,13 +208,13 @@
   .wo-items { font-size:.92rem; }
 
   /* photos */
-  #card-photos { justify-content:space-evenly; }
+  #card-photos { justify-content:space-evenly; align-items:center; }
+  /* the frame hugs each photo's own shape — portraits get a narrow frame, no white mat */
   .polaroid { display:flex; flex-direction:column; background:#fff; border:1px solid var(--line);
     box-shadow:0 3px 10px rgba(35,32,25,.12); padding:.5rem .5rem 0; border-radius:.2rem;
-    transform:rotate(var(--tilt, -1.2deg)); margin:.2rem .35rem .6rem; }
-  /* two stacked postcards: each frame takes its photo's aspect, capped to half the tile */
-  .polaroid .ph { width:100%; aspect-ratio:var(--ar, 3 / 2); max-height:calc(50vh - 11rem);
-    overflow:hidden; background:#efe8d8; position:relative; }
+    transform:rotate(var(--tilt, -1.2deg)); margin:.2rem auto .6rem; width:fit-content; max-width:96%; }
+  .polaroid .ph { overflow:hidden; background:#efe8d8; position:relative; max-width:100%; }
+  body.night .polaroid .ph { background:#332e26; }
   .polaroid img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
     opacity:0; transition:opacity 1.2s ease; }
   .polaroid img.show { opacity:1; }
@@ -720,7 +720,14 @@ function setSlot(i) {
   const img = document.createElement('img');
   img.src = '/img/photos/' + encodeURIComponent(p.file);
   img.onload = () => {
-    holder.style.setProperty('--ar', `${img.naturalWidth} / ${img.naturalHeight}`);
+    // size the frame to this photo's shape within the card's half-height budget
+    const ar = img.naturalWidth / img.naturalHeight;
+    const card = $('card-photos');
+    const availW = Math.max(120, card.clientWidth - 60);
+    const availH = Math.max(120, card.clientHeight / 2 - 95);
+    const w = Math.min(availW, availH * ar);
+    holder.style.width = w + 'px';
+    holder.style.height = (w / ar) + 'px';
     holder.appendChild(img);
     requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('show')));
     setTimeout(() => { holder.querySelectorAll('img').forEach(o => { if (o !== img) o.remove(); }); }, 1500);
