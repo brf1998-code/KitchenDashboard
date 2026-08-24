@@ -97,6 +97,13 @@
     .polaroid .cap { font-size:1.05rem; }
     .amb-clock { font-size:4rem; }
     .amb-sub { font-size:1.25rem; }
+    /* long tiles scroll inside their frame instead of clipping */
+    #card-weekend, #card-chores, #card-grocery { display:flex; flex-direction:column; }
+    #weekend, #chores, #grocery { flex:1; min-height:0; overflow-y:auto; padding-right:.35rem;
+      scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+    #weekend::-webkit-scrollbar, #chores::-webkit-scrollbar, #grocery::-webkit-scrollbar { width:6px; }
+    #weekend::-webkit-scrollbar-thumb, #chores::-webkit-scrollbar-thumb,
+    #grocery::-webkit-scrollbar-thumb { background:var(--line); border-radius:99px; }
   }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
@@ -688,7 +695,7 @@ function renderChores() {
     if (up.length >= 6) break;
   }
   if (up.length) {
-    el.innerHTML += `<div class="subhead">Coming up</div>` + up.slice(0, 6).map(c => `
+    el.insertAdjacentHTML('beforeend', `<div class="subhead">Coming up</div>` + up.slice(0, 6).map(c => `
       <div class="ch-row up ${c.done ? 'done' : ''}">
         <span class="ch-day mono">${DOWS[c.dow]}</span>
         <div class="ch-title">${esc(c.title)}${c.cadence === 'once' ? ' <span class="oncechip">one-time</span>' : ''}</div>
@@ -696,7 +703,7 @@ function renderChores() {
           data-ch="${c.id}" data-p="b" data-d="${c.date}">B</span>
         <span class="mark ${c.by.e ? 'on-e' : ''} ${c.assignee === 'e' || c.assignee === 'both' ? 'want-e' : ''}"
           data-ch="${c.id}" data-p="e" data-d="${c.date}">E</span>
-      </div>`).join('');
+      </div>`).join(''));
   }
   el.querySelectorAll('.mark, .ch-check').forEach(m => m.onclick = async (e) => {
     e.stopPropagation();
@@ -712,9 +719,10 @@ function renderChores() {
         ? `${who} ${x.monthCount}${x.streak >= 2 ? ` <span style="color:var(--gold)">(&#128293;${x.streak}d)</span>` : ''}` : `${who} ${x ? x.monthCount : 0}`;
       return `<div class="muted" style="margin-top:.5rem">This month: <span class="mono">${part('B', s.b)}</span> · <span class="mono">${part('E', s.e)}</span> chores done</div>`;
     })() : '';
-    el.innerHTML += streakLine + `<div class="muted" style="margin-top:.45rem; border-top:1px solid var(--line); padding-top:.5rem">
+    // insertAdjacentHTML, NOT innerHTML += — the latter re-parses the card and kills the click handlers
+    el.insertAdjacentHTML('beforeend', streakLine + `<div class="muted" style="margin-top:.45rem; border-top:1px solid var(--line); padding-top:.5rem">
       To-dos due: <span class="mono">B ${D.todo.b}</span> · <span class="mono">E ${D.todo.e}</span>
-      — <a class="plain" href="/todo">open the lists →</a></div>`;
+      — <a class="plain" href="/todo">open the lists →</a></div>`);
   }
 }
 function renderGrocery() {
