@@ -30,7 +30,9 @@
   header .heart { color:var(--mit); }
   #who { margin-left:auto; font-family:ui-monospace, Menlo, monospace; font-size:.8rem; color:var(--soft); }
   #who b { color:var(--mit); }
-  nav { display:flex; gap:.3rem; padding:.5rem 0 .55rem; }
+  nav { display:flex; gap:.3rem; padding:.5rem 0 .55rem; overflow-x:auto; scrollbar-width:none; }
+  nav::-webkit-scrollbar { display:none; }
+  nav button { white-space:nowrap; flex:0 0 auto; }
   nav button { font-family:inherit; font-size:.92rem; padding:.34rem .85rem; border-radius:99px;
     border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
   nav button.on { background:var(--mit); border-color:var(--mit); color:#fff; }
@@ -88,7 +90,16 @@
   #qa input { flex:1; font-family:inherit; font-size:1rem; padding:.6rem .7rem; border:1px solid var(--line);
     border-radius:.6rem; background:#fff; min-width:0; }
   #qa .hint { max-width:44rem; margin:.3rem auto 0; font-size:.68rem; color:var(--soft);
-    font-family:ui-monospace, Menlo, monospace; }
+    font-family:ui-monospace, Menlo, monospace; display:none; }
+  #qa-opts { max-width:44rem; margin:.4rem auto 0; display:flex; gap:.35rem; overflow-x:auto;
+    scrollbar-width:none; }
+  #qa-opts::-webkit-scrollbar { display:none; }
+  .qa-sel { font-family:inherit; font-size:.85rem; padding:.3rem .4rem; border:1px solid var(--line);
+    border-radius:.45rem; background:#fff; color:var(--ink); flex:0 0 auto; max-width:10rem; }
+  /* chores tab */
+  .chore-form { display:flex; gap:.35rem; flex-wrap:wrap; margin:.6rem 0 .9rem; align-items:center; }
+  .chore-form input[type=text] { flex:1; min-width:9rem; font-family:inherit; font-size:.95rem;
+    padding:.45rem .55rem; border:1px solid var(--line); border-radius:.5rem; }
   /* edit sheet */
   .modal-bg { position:fixed; inset:0; background:rgba(35,32,25,.45); display:none;
     align-items:flex-end; justify-content:center; z-index:10; }
@@ -121,6 +132,7 @@
     <button data-tab="today" class="on">Today</button>
     <button data-tab="upcoming">Upcoming</button>
     <button data-tab="groceries">Groceries</button>
+    <button data-tab="chores">Chores</button>
     <button data-tab="projects">Projects</button>
     <a href="/dash" class="dashlink">&#8962;<span class="dl-txt"> dashboard</span></a>
   </nav>
@@ -130,7 +142,23 @@
 <div id="qa">
   <div class="row"><input id="qa-in" placeholder="Add a task…" autocomplete="off"><button class="btn red" id="qa-add">Add</button></div>
   <datalist id="gr-dl"></datalist>
-  <div class="hint">try: “water plants every mon p2 #Household” · “call insurance tomorrow p1” · “pack list aug 30”</div>
+  <div id="qa-opts">
+    <select id="qa-proj" class="qa-sel"></select>
+    <select id="qa-due" class="qa-sel">
+      <option value="">No date</option><option value="today">Today</option>
+      <option value="tomorrow">Tomorrow</option><option value="pick">Pick date…</option>
+    </select>
+    <input type="date" id="qa-date" class="qa-sel" style="display:none">
+    <select id="qa-rep" class="qa-sel">
+      <option value="">No repeat</option><option value="every day">Every day</option>
+      <option value="every weekday">Every weekday</option><option value="every week">Every week</option>
+      <option value="every month">Every month</option><option value="custom">Custom…</option>
+    </select>
+    <select id="qa-pri" class="qa-sel">
+      <option value="4">p4</option><option value="3">p3</option><option value="2">p2</option><option value="1">p1</option>
+    </select>
+  </div>
+  <div class="hint" id="qa-hint">commas add several at once · tap the circle when it’s in the cart</div>
 </div>
 
 <div class="modal-bg" id="edit-bg"><div class="sheet">
@@ -176,6 +204,7 @@ async function load() {
   if (r.status === 401) return location.href = '/';
   S = await r.json();
   CH = await (await fetch('/api/todo/chores')).json();
+  syncQaProjects();
   $('who').innerHTML = `signed in as <b>${S.role === 'b' ? 'Brendan' : 'Emma'}</b>
     · <a href="#" id="signout" style="color:var(--soft)">switch</a>`;
   $('signout').onclick = async (e) => {
@@ -246,6 +275,23 @@ function render() {
         || '<div class="empty">List’s empty. Type below — commas add several at once.</div>') +
       (done.length ? `<div class="sec">Recently bought <span class="muted" style="text-transform:none">(tap to put back)</span></div>` +
         done.map(t => `<div class="gr-restore" data-restore="${t.id}">&#8634; ${esc(t.content)}</div>`).join('') : '');
+  } else if (tab === 'chores') {
+    el.innerHTML = `<div class="sec">House chore schedule</div>
+      <div class="muted" style="margin:.4rem 0">These generate the daily checklist on the kitchen dashboard and in Today. "Alternate" swaps between you two (daily chores flip each day, weekly ones each week).</div>
+      <div class="chore-form">
+        <input type="text" id="hc-title" placeholder="New chore">
+        <select id="hc-cad" class="qa-sel"><option value="weekly">weekly</option>
+          <option value="daily">daily</option><option value="once">one time</option></select>
+        <select id="hc-day" class="qa-sel"><option value="0">Sun</option><option value="1">Mon</option>
+          <option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option>
+          <option value="5">Fri</option><option value="6">Sat</option></select>
+        <input type="date" id="hc-due" class="qa-sel" style="display:none">
+        <select id="hc-who" class="qa-sel"><option value="alt">alternate</option><option value="b">Brendan</option>
+          <option value="e">Emma</option><option value="both">both</option></select>
+        <button class="btn" id="hc-add">Add</button>
+      </div>
+      <div id="hc-list" class="muted">Loading…</div>`;
+    loadChoreSchedule();
   } else if (tab === 'projects' && !openProject) {
     el.innerHTML = S.projects.map(p => {
       const n = S.tasks.filter(t => t.project_id === p.id && !t.done).length;
@@ -290,12 +336,44 @@ function wire() {
     await fetch(`/api/todo/tasks/${b.dataset.restore}/uncomplete`, { method: 'POST' });
     load();
   });
-  document.querySelectorAll('.prow').forEach(r => r.onclick = () => { openProject = Number(r.dataset.proj); showDone = false; render(); });
+  document.querySelectorAll('.prow').forEach(r => r.onclick = () => { openProject = Number(r.dataset.proj); showDone = false; render(); syncQaProjects(); });
   const back = $('back'); if (back) back.onclick = () => { openProject = null; render(); };
   const td = $('toggle-done'); if (td) td.onclick = () => { showDone = !showDone; render(); };
   const np = $('np-add'); if (np) np.onclick = () => newProject(false);
   const nps = $('np-add-shared'); if (nps) nps.onclick = () => newProject(true);
   const imp = $('imp-open'); if (imp) imp.onclick = () => { $('imp-bg').classList.add('on'); $('imp-status').textContent = ''; };
+}
+async function loadChoreSchedule() {
+  const j = await (await fetch('/api/chores')).json();
+  const WHO = { alt: 'alternate', b: 'Brendan', e: 'Emma', both: 'both' };
+  $('hc-list').innerHTML = j.chores.map(c => `
+    <div class="task"><div class="tbody">
+      <div class="tcontent">${esc(c.title)}</div>
+      <div class="tmeta"><span>${c.cadence === 'daily' ? 'every day' : c.cadence === 'once' ? 'once · ' + (c.due || '?') : 'every ' + DOWS[c.day]}</span>
+        <span class="proj">${WHO[c.assignee] || c.assignee}</span></div>
+    </div><button class="showdone" data-hcdel="${c.id}" style="padding:.2rem .5rem">&#10005;</button></div>`).join('')
+    || '<div class="empty">No chores set up.</div>';
+  $('hc-list').querySelectorAll('[data-hcdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this chore from the schedule?')) return;
+    await fetch(`/api/chores/${b.dataset.hcdel}`, { method: 'DELETE' });
+    loadChoreSchedule();
+  });
+  $('hc-cad').onchange = () => {
+    const v = $('hc-cad').value;
+    $('hc-day').style.display = v === 'weekly' ? '' : 'none';
+    $('hc-due').style.display = v === 'once' ? '' : 'none';
+  };
+  $('hc-add').onclick = async () => {
+    const title = $('hc-title').value.trim();
+    if (!title) return;
+    const cadence = $('hc-cad').value;
+    if (cadence === 'once' && !$('hc-due').value) { alert('Pick a date for the one-time chore.'); return; }
+    await fetch('/api/chores', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ title, cadence, day: Number($('hc-day').value),
+        assignee: $('hc-who').value, due: $('hc-due').value }) });
+    $('hc-title').value = ''; $('hc-due').value = '';
+    loadChoreSchedule();
+  };
 }
 async function newProject(shared) {
   const name = prompt(shared ? 'Name for the shared list:' : 'Name for your new list:');
@@ -349,72 +427,45 @@ $('imp-go').onclick = async () => {
   if (j.ok) { $('imp-csv').value = ''; setTimeout(() => $('imp-bg').classList.remove('on'), 900); load(); }
 };
 
-// ---------- quick add parsing ----------
-const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
-const DAYN = { sun:0, sunday:0, mon:1, monday:1, tue:2, tues:2, tuesday:2, wed:3, weds:3, wednesday:3,
-  thu:4, thur:4, thurs:4, thursday:4, fri:5, friday:5, sat:6, saturday:6 };
-function parseQuick(raw) {
-  let s = ' ' + raw.trim() + ' ';
-  const out = { priority: 4, due: '', recur: '', project_id: null };
-  let m;
-  if ((m = s.match(/\s#(\S+)/))) {
-    const q = m[1].toLowerCase();
-    const p = S.projects.find(p => p.name.toLowerCase().startsWith(q));
-    if (p) { out.project_id = p.id; s = s.replace(m[0], ' '); }
-  }
-  if ((m = s.match(/\sp([1-4])\b/i))) { out.priority = Number(m[1]); s = s.replace(m[0], ' '); }
-  if ((m = s.match(/\severy\s+([a-z0-9, ]+?)(?=\s+p[1-4]\b|\s+#|\s*$)/i))) {
-    out.recur = ('every ' + m[1].trim()).toLowerCase(); out.due = S.today; s = s.replace(m[0], ' ');
-  }
-  if (!out.recur) {
-    if ((m = s.match(/\s(today|tod)\s/i))) { out.due = S.today; s = s.replace(m[0], ' '); }
-    else if ((m = s.match(/\s(tomorrow|tmr|tmrw)\s/i))) { out.due = addD(S.today, 1); s = s.replace(m[0], ' '); }
-    else if ((m = s.match(/\s(next\s+)?(sun|sunday|mon|monday|tue|tues|tuesday|wed|weds|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday)\s/i))) {
-      const target = DAYN[m[2].toLowerCase()];
-      let d = addD(S.today, 1);
-      while (new Date(d + 'T12:00:00Z').getUTCDay() !== target) d = addD(d, 1);
-      if (m[1]) d = addD(d, 7);
-      out.due = d; s = s.replace(m[0], ' ');
-    }
-    else if ((m = s.match(/\s(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+(\d{1,2})\s/i))) {
-      const now = new Date(S.today + 'T12:00:00Z');
-      let d = new Date(Date.UTC(now.getUTCFullYear(), MONTHS[m[1].toLowerCase()], Number(m[2]), 12));
-      if (d.toISOString().slice(0, 10) < S.today) d.setUTCFullYear(d.getUTCFullYear() + 1);
-      out.due = d.toISOString().slice(0, 10); s = s.replace(m[0], ' ');
-    }
-    else if ((m = s.match(/\s(\d{1,2})\/(\d{1,2})\s/))) {
-      const now = new Date(S.today + 'T12:00:00Z');
-      let d = new Date(Date.UTC(now.getUTCFullYear(), Number(m[1]) - 1, Number(m[2]), 12));
-      if (d.toISOString().slice(0, 10) < S.today) d.setUTCFullYear(d.getUTCFullYear() + 1);
-      out.due = d.toISOString().slice(0, 10); s = s.replace(m[0], ' ');
-    }
-  }
-  out.content = s.replace(/\s+/g, ' ').trim();
-  return out;
+// ---------- quick add: structured, what you see is what you get ----------
+$('qa-due').onchange = () => {
+  $('qa-date').style.display = $('qa-due').value === 'pick' ? '' : 'none';
+};
+function syncQaProjects() {
+  if (!S) return;
+  const cur = $('qa-proj').value;
+  $('qa-proj').innerHTML = S.projects
+    .filter(p => !(p.person === 'house' && p.name === 'Groceries'))
+    .map(p => `<option value="${p.id}">${esc(p.name)}${p.person === 'house' ? ' (shared)' : ''}</option>`).join('');
+  // default: the open project, else your Inbox
+  const def = (tab === 'projects' && openProject) ? openProject
+    : (S.projects.find(p => p.person === S.role && p.name === 'Inbox') || S.projects[0] || {}).id;
+  $('qa-proj').value = cur && [...$('qa-proj').options].some(o => o.value === cur) ? cur : def;
 }
 async function quickAdd() {
-  const raw = $('qa-in').value;
-  if (!raw.trim() || !S) return;
-  // Groceries tab: plain items, commas add several — no date/priority parsing
+  const raw = $('qa-in').value.trim();
+  if (!raw || !S) return;
+  // Groceries tab: plain items, commas add several
   if (tab === 'groceries') {
     const gp = S.projects.find(p => p.person === 'house' && p.name === 'Groceries');
     if (!gp) return;
-    const items = raw.split(',').map(s => s.trim()).filter(Boolean);
-    for (const content of items)
+    for (const content of raw.split(',').map(s => s.trim()).filter(Boolean))
       await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ project_id: gp.id, content }) });
     $('qa-in').value = '';
     return load();
   }
-  const q = parseQuick(raw);
-  if (!q.content) return;
-  if (!q.project_id) {
-    // default project: open project if inside one, else your Inbox, else Household on the shared tab? keep Inbox
-    q.project_id = (tab === 'projects' && openProject) ? openProject
-      : (S.projects.find(p => p.person === S.role && p.name === 'Inbox') || S.projects[0]).id;
+  const dueSel = $('qa-due').value;
+  let due = dueSel === 'today' ? S.today : dueSel === 'tomorrow' ? addD(S.today, 1)
+    : dueSel === 'pick' ? ($('qa-date').value || '') : '';
+  let recur = $('qa-rep').value;
+  if (recur === 'custom') {
+    recur = (prompt('Repeat rule (e.g. "every mon, thu" · "every 2 weeks" · "every 15th"):') || '').trim().toLowerCase();
+    if (recur && !recur.startsWith('every')) recur = 'every ' + recur;
   }
   await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(q) });
+    body: JSON.stringify({ project_id: Number($('qa-proj').value), content: raw, due, recur,
+      priority: Number($('qa-pri').value) }) });
   $('qa-in').value = '';
   load();
 }
@@ -427,14 +478,18 @@ async function loadGrSuggest() {
     $('gr-dl').innerHTML = (j.suggestions || []).map(s => `<option value="${esc(s.content)}">`).join('');
   } catch (e) {}
 }
+function syncQaBar() {
+  $('qa').style.display = tab === 'chores' ? 'none' : '';
+  $('qa-opts').style.display = (tab === 'groceries' || tab === 'chores') ? 'none' : 'flex';
+  $('qa-hint').style.display = tab === 'groceries' ? 'block' : 'none';
+  $('qa-in').setAttribute('list', tab === 'groceries' ? 'gr-dl' : '');
+  $('qa-in').placeholder = tab === 'groceries' ? 'Add groceries — milk, eggs, bread…' : 'Add a task…';
+  syncQaProjects();
+}
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   tab = b.dataset.tab; openProject = null;
-  $('qa-in').setAttribute('list', tab === 'groceries' ? 'gr-dl' : '');
   if (tab === 'groceries') loadGrSuggest();
-  $('qa-in').placeholder = tab === 'groceries' ? 'Add groceries — milk, eggs, bread…' : 'Add a task…';
-  document.querySelector('#qa .hint').textContent = tab === 'groceries'
-    ? 'commas add several at once · tap the circle when it’s in the cart'
-    : 'try: “water plants every mon p2 #Household” · “call insurance tomorrow p1” · “pack list aug 30”';
+  syncQaBar();
   render();
 });
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal-bg').classList.remove('on'));
