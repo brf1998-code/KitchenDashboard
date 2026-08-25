@@ -516,13 +516,13 @@ app.post('/api/login', (req, res) => {
   res.json({ role });
 });
 app.use('/icons', express.static(path.join(__dirname, 'public', 'icons'), { maxAge: '7d' }));
-function manifest(name, shortName, startUrl) {
+function manifest(name, shortName, startUrl, prefix = 'icon') {
   return {
     name, short_name: shortName, start_url: startUrl, display: 'standalone',
     background_color: '#faf6ef', theme_color: '#faf6ef',
     icons: [
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: `/icons/${prefix}-192.png`, sizes: '192x192', type: 'image/png' },
+      { src: `/icons/${prefix}-512.png`, sizes: '512x512', type: 'image/png' },
     ],
   };
 }
@@ -532,7 +532,7 @@ app.get('/manifest-dash.webmanifest', (req, res) => {
 });
 app.get('/manifest-todo.webmanifest', (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json');
-  res.json(manifest('B ♥ E — 34 To-dos', '34 To-dos', '/todo'));
+  res.json(manifest('B ♥ E — 34 To-dos', '34 To-dos', '/todo', 'todo'));
 });
 // legacy path from v12 keeps working, pointed at the dashboard
 app.get('/manifest.webmanifest', (req, res) => {
