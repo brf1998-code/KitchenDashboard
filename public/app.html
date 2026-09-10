@@ -913,6 +913,15 @@ function renderEvents() {
 }
 
 // ---------- ambient art mode (30 min idle) ----------
+// Weekday rush hours (5-9 AM, 4-8 PM) stay on the live dashboard: no photo takeover,
+// and an ambient screen already up drops back within 30 s. ?rush=1|0 overrides for previewing.
+function inRushHours(now = new Date()) {
+  const q = new URLSearchParams(location.search);
+  if (q.has('rush')) return q.get('rush') === '1';
+  const d = now.getDay(), h = now.getHours();
+  if (d === 0 || d === 6) return false;
+  return (h >= 5 && h < 9) || (h >= 16 && h < 20);
+}
 let lastActivity = Date.now(), ambientOn = false, ambTimer = null;
 function ambientClock() {
   const now = new Date();
@@ -943,7 +952,7 @@ function ambientPhoto() {
   img.onerror = () => img.remove();
 }
 function enterAmbient() {
-  if (ambientOn || !phPool.length) return;
+  if (ambientOn || !phPool.length || inRushHours()) return;
   ambientOn = true;
   $('ambient').classList.add('on');
   ambientPhoto(); ambientClock();
@@ -964,6 +973,7 @@ function activity() {
 ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'].forEach(ev =>
   window.addEventListener(ev, activity, { passive: true }));
 setInterval(() => {
+  if (inRushHours()) { exitAmbient(); return; }
   if (!ambientOn && Date.now() - lastActivity > 30 * 60 * 1000) enterAmbient();
 }, 30 * 1000);
 
