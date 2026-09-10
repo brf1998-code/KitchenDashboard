@@ -100,6 +100,45 @@ db.exec(`
   if (!hasP.get('b', 'Inbox')) insP.run('b', 'Inbox', 1);
   if (!hasP.get('e', 'Inbox')) insP.run('e', 'Inbox', 1);
 }
+// Classes: a project with kind='class' is a course; its tasks carry a kind
+// (reading < admin < hw < quiz < exam/project) and an est flag for guessed dates.
+try { db.exec("ALTER TABLE todo_projects ADD COLUMN kind TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE todo_projects ADD COLUMN info TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE todo_tasks ADD COLUMN kind TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE todo_tasks ADD COLUMN est INTEGER DEFAULT 0"); } catch (e) {}
+const TASK_KINDS = ['reading', 'admin', 'hw', 'quiz', 'exam', 'project'];
+const KIND_PRI = { reading: 4, admin: 4, hw: 3, quiz: 2, exam: 1, project: 1 };
+// One-shot seed of the semester's deliverables (seed/classes-fall2026.js); re-runs only when its version goes up.
+{
+  const seed = require('./seed/classes-fall2026.js');
+  const getS = db.prepare("SELECT value FROM settings WHERE key = 'classes_seed'").get();
+  const applied = Number((getS || {}).value || 0);
+  if (applied < seed.version) {
+    const hasP = db.prepare("SELECT id FROM todo_projects WHERE person = ? AND name = ? AND kind = 'class'");
+    const insP = db.prepare('INSERT INTO todo_projects (person, name, pos, kind, info) VALUES (?, ?, ?, ?, ?)');
+    const hasT = db.prepare('SELECT id FROM todo_tasks WHERE project_id = ? AND content = ? AND due = ?');
+    const insT = db.prepare(`INSERT INTO todo_tasks (project_id, content, notes, priority, due, kind, est, created, pos)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    let n = 0;
+    for (const c of seed.classes) {
+      let p = hasP.get(seed.person, c.name);
+      if (!p) {
+        const pos = (db.prepare('SELECT MAX(pos) m FROM todo_projects').get().m || 0) + 1;
+        insP.run(seed.person, c.name, pos, 'class', c.info || '');
+        p = hasP.get(seed.person, c.name);
+      } else if (c.info) db.prepare('UPDATE todo_projects SET info = ? WHERE id = ?').run(c.info, p.id);
+      let pos = (db.prepare('SELECT MAX(pos) m FROM todo_tasks WHERE project_id = ?').get(p.id).m || 0);
+      for (const t of c.tasks) {
+        if (hasT.get(p.id, t.content, t.due || '')) continue;
+        insT.run(p.id, t.content, t.notes || '', KIND_PRI[t.kind] || 4, t.due || '', t.kind || '',
+          t.est ? 1 : 0, new Date().toISOString(), ++pos);
+        n++;
+      }
+    }
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('classes_seed', ?)").run(String(seed.version));
+    console.log(`classes seed v${seed.version} applied: ${n} tasks added`);
+  }
+}
 db.exec(`CREATE TABLE IF NOT EXISTS emma_shifts (
   date TEXT PRIMARY KEY, label TEXT, time TEXT DEFAULT '', kind TEXT DEFAULT 'day'
 )`);
@@ -593,7 +632,8 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     todo: (() => {
       const count = role => db.prepare(`SELECT COUNT(*) c FROM todo_tasks t
         JOIN todo_projects p ON p.id = t.project_id
-        WHERE t.done = 0 AND t.due != '' AND t.due <= ? AND p.archived = 0 AND p.person IN (?, 'house')`)
+        WHERE t.done = 0 AND t.due != '' AND t.due <= ? AND p.archived = 0 AND p.person IN (?, 'house')
+          AND t.kind != 'reading'`)
         .get(today, role).c;
       return { b: count('b'), e: count('e') };
     })(),
@@ -815,12 +855,14 @@ app.post('/api/todo/projects', requireAuth, (req, res) => {
   const name = String((req.body || {}).name || '').trim();
   if (!name) return res.status(400).json({ error: 'name required' });
   const person = (req.body || {}).shared ? 'house' : req.role;
+  const kind = (req.body || {}).kind === 'class' ? 'class' : '';
   const pos = (db.prepare('SELECT MAX(pos) m FROM todo_projects').get().m || 0) + 1;
-  db.prepare('INSERT INTO todo_projects (person, name, pos) VALUES (?, ?, ?)').run(person, name, pos);
+  db.prepare('INSERT INTO todo_projects (person, name, pos, kind, info) VALUES (?, ?, ?, ?, ?)')
+    .run(person, name, pos, kind, String((req.body || {}).info || ''));
   res.json({ ok: true });
 });
 app.patch('/api/todo/projects/:id', requireAuth, (req, res) => {
-  for (const f of ['name']) if (f in (req.body || {}))
+  for (const f of ['name', 'info']) if (f in (req.body || {}))
     db.prepare(`UPDATE todo_projects SET ${f} = ? WHERE id = ?`).run(String(req.body[f]), req.params.id);
   if ('archived' in (req.body || {}))
     db.prepare('UPDATE todo_projects SET archived = ? WHERE id = ?').run(req.body.archived ? 1 : 0, req.params.id);
@@ -835,14 +877,16 @@ app.post('/api/todo/tasks', requireAuth, (req, res) => {
   const content = String(b.content || '').trim();
   if (!content) return res.status(400).json({ error: 'content required' });
   if (!ownsProject(req.role, b.project_id)) return res.status(400).json({ error: 'bad project' });
-  const pri = [1, 2, 3, 4].includes(Number(b.priority)) ? Number(b.priority) : 4;
+  const kind = TASK_KINDS.includes(b.kind) ? b.kind : '';
+  // a kind implies its priority unless one was given explicitly
+  const pri = [1, 2, 3, 4].includes(Number(b.priority)) ? Number(b.priority) : (KIND_PRI[kind] || 4);
   const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due || '')) ? String(b.due) : '';
   const recur = String(b.recur || '').trim().toLowerCase();
   const pos = (db.prepare('SELECT MAX(pos) m FROM todo_tasks WHERE project_id = ?').get(b.project_id).m || 0) + 1;
-  db.prepare(`INSERT INTO todo_tasks (project_id, content, notes, priority, due, recur, created, pos)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+  db.prepare(`INSERT INTO todo_tasks (project_id, content, notes, priority, due, recur, kind, est, created, pos)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(Number(b.project_id), content, String(b.notes || ''), pri,
-      due || (recur ? localISO() : ''), recur, new Date().toISOString(), pos);
+      due || (recur ? localISO() : ''), recur, kind, b.est ? 1 : 0, new Date().toISOString(), pos);
   res.json({ ok: true });
 });
 app.patch('/api/todo/tasks/:id', requireAuth, (req, res) => {
@@ -855,6 +899,10 @@ app.patch('/api/todo/tasks/:id', requireAuth, (req, res) => {
     db.prepare('UPDATE todo_tasks SET due = ? WHERE id = ?').run(String(b.due), req.params.id);
   if ('priority' in b && [1, 2, 3, 4].includes(Number(b.priority)))
     db.prepare('UPDATE todo_tasks SET priority = ? WHERE id = ?').run(Number(b.priority), req.params.id);
+  if ('kind' in b && (TASK_KINDS.includes(b.kind) || b.kind === ''))
+    db.prepare('UPDATE todo_tasks SET kind = ? WHERE id = ?').run(String(b.kind), req.params.id);
+  if ('est' in b)
+    db.prepare('UPDATE todo_tasks SET est = ? WHERE id = ?').run(b.est ? 1 : 0, req.params.id);
   if ('project_id' in b && ownsProject(req.role, b.project_id))
     db.prepare('UPDATE todo_tasks SET project_id = ? WHERE id = ?').run(Number(b.project_id), req.params.id);
   res.json({ ok: true });

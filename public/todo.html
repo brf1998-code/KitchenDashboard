@@ -117,7 +117,7 @@
   .frow label { width:4.6rem; color:var(--soft); font-size:.85rem; }
   .frow input, .frow select, .frow textarea { flex:1; font-family:inherit; font-size:.95rem;
     padding:.45rem .55rem; border:1px solid var(--line); border-radius:.5rem; background:#fff; min-width:0; }
-  .pribtns { display:flex; gap:.35rem; }
+  .pribtns { display:flex; gap:.35rem; flex-wrap:wrap; }
   .pribtns button { font-family:ui-monospace, Menlo, monospace; font-size:.85rem; padding:.35rem .7rem;
     border-radius:.45rem; border:1.5px solid var(--line); background:none; cursor:pointer; color:var(--soft); }
   .pribtns button.on1 { border-color:var(--p1); color:var(--p1); background:#faeae8; }
@@ -125,7 +125,32 @@
   .pribtns button.on3 { border-color:var(--p3); color:var(--p3); background:#e9f0fb; }
   .pribtns button.on4 { border-color:var(--p4); color:var(--soft); background:#f2ecdd; }
   textarea#imp-csv { width:100%; min-height:7rem; font-family:ui-monospace, Menlo, monospace; font-size:.78rem; }
+  textarea#ed-notes { width:100%; min-height:3.6rem; font-size:.9rem; }
   .muted { color:var(--soft); font-size:.85rem; }
+  /* classes tab */
+  nav button[data-tab="classes"].on { background:var(--chb); border-color:var(--chb); }
+  .kind { font-family:ui-monospace, Menlo, monospace; font-size:.66rem; letter-spacing:.04em; text-transform:uppercase;
+    padding:.05rem .4rem; border-radius:.3rem; border:1px solid var(--line); color:var(--soft); background:#f2ecdd; }
+  .kind.k-reading { color:#6b6353; background:#f2ecdd; }
+  .kind.k-admin { color:#5a4a1f; background:#f4ecd2; border-color:#e2d3a2; }
+  .kind.k-hw { color:var(--p3); background:#e9f0fb; border-color:#c4d5f2; }
+  .kind.k-quiz { color:#a35d05; background:#fdf2e2; border-color:#f0cf9d; }
+  .kind.k-exam, .kind.k-project { color:var(--p1); background:#faeae8; border-color:#efc2bc; }
+  .tmeta .est { color:var(--gold); }
+  .tmeta .est::before { content:'~ '; }
+  .tnotes { font-size:.8rem; color:var(--soft); margin-top:.15rem; line-height:1.3; }
+  .chips { display:flex; gap:.35rem; overflow-x:auto; scrollbar-width:none; padding:.3rem 0 .1rem; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chips button { flex:0 0 auto; font-family:ui-monospace, Menlo, monospace; font-size:.8rem; padding:.28rem .7rem;
+    border-radius:99px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  .chips button.on { background:var(--chb); border-color:var(--chb); color:#fff; }
+  .cls-ctl { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; margin:.45rem 0 .2rem; font-size:.85rem; color:var(--soft); }
+  .cls-ctl .seg button.on { background:var(--chb); }
+  .cls-ctl label { display:inline-flex; align-items:center; gap:.3rem; cursor:pointer; }
+  .cls-info { font-size:.82rem; color:var(--soft); margin:.2rem 0 .3rem; line-height:1.35; }
+  .legend { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; font-size:.72rem; color:var(--soft);
+    font-family:ui-monospace, Menlo, monospace; margin:.35rem 0 .1rem; }
+  .legend .arrow { margin:0 .1rem; }
 </style>
 </head>
 <body>
@@ -137,6 +162,7 @@
   <nav>
     <button data-tab="today" class="on">Today</button>
     <button data-tab="upcoming">Upcoming</button>
+    <button data-tab="classes">Classes</button>
     <button data-tab="groceries">Groceries</button>
     <button data-tab="chores">Chores</button>
     <button data-tab="projects">Projects</button>
@@ -150,6 +176,10 @@
   <datalist id="gr-dl"></datalist>
   <div id="qa-opts">
     <select id="qa-proj" class="qa-sel"></select>
+    <select id="qa-kind" class="qa-sel" style="display:none">
+      <option value="hw">hw</option><option value="reading">reading</option><option value="admin">admin</option>
+      <option value="quiz">quiz</option><option value="exam">exam</option><option value="project">project</option>
+    </select>
     <select id="qa-due" class="qa-sel">
       <option value="">No date</option><option value="today">Today</option>
       <option value="tomorrow">Tomorrow</option><option value="pick">Pick date…</option>
@@ -163,6 +193,8 @@
     <select id="qa-pri" class="qa-sel">
       <option value="4">p4</option><option value="3">p3</option><option value="2">p2</option><option value="1">p1</option>
     </select>
+    <label class="qa-sel" id="qa-est-wrap" style="display:none; align-items:center; gap:.3rem">
+      <input type="checkbox" id="qa-est"> date is a guess</label>
   </div>
   <div class="hint" id="qa-hint">commas add several at once · tap the circle when it’s in the cart</div>
 </div>
@@ -176,6 +208,13 @@
   <div class="frow"><label>Priority</label><span class="pribtns" id="ed-pri">
     <button data-p="1">p1</button><button data-p="2">p2</button><button data-p="3">p3</button><button data-p="4">p4</button></span></div>
   <div class="frow"><label>Project</label><select id="ed-proj"></select></div>
+  <div class="frow"><label>Kind</label><span class="pribtns" id="ed-kind">
+    <button data-k="">none</button><button data-k="reading">reading</button><button data-k="admin">admin</button>
+    <button data-k="hw">hw</button><button data-k="quiz">quiz</button><button data-k="exam">exam</button>
+    <button data-k="project">project</button></span></div>
+  <div class="frow"><label>Estimate</label><label style="width:auto; display:inline-flex; gap:.35rem; align-items:center; cursor:pointer">
+    <input type="checkbox" id="ed-est" style="flex:0 0 auto"> best guess, not from the syllabus</label></div>
+  <div class="frow"><label>Notes</label><textarea id="ed-notes" placeholder="Details, what it covers, weight…"></textarea></div>
   <div class="frow" style="justify-content:space-between; margin-top:.9rem">
     <button class="btn gray" id="ed-del">Delete</button>
     <span><button class="btn ghost" data-close>Cancel</button>
@@ -220,7 +259,15 @@
 
 <script>
 const $ = id => document.getElementById(id);
-let S = null, CH = null, tab = 'today', openProject = null, showDone = false, editing = null, edPri = 4;
+let S = null, CH = null, tab = 'today', openProject = null, showDone = false, editing = null, edPri = 4, edKind = '';
+// classes tab: triage weight per kind (readings lowest, exams and projects highest)
+const KIND_W = { reading: 1, admin: 2, hw: 3, quiz: 4, exam: 5, project: 5 };
+const KINDS = ['reading', 'admin', 'hw', 'quiz', 'exam', 'project'];
+let clsFilter = 0, clsView = 'date', hideReadings = false;
+try { hideReadings = localStorage.getItem('cls_hide_readings') === '1'; clsView = localStorage.getItem('cls_view') || 'date'; } catch (e) {}
+function isClass(p) { return p && p.kind === 'class'; }
+function classCode(name) { return String(name || '').split(/\s+/)[0]; }
+function projObj(id) { return S.projects.find(p => p.id === id); }
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function fmtDay(d) {
@@ -252,12 +299,17 @@ function taskRow(t, opts = {}) {
   const dueChip = t.due
     ? `<span class="${over ? 'over' : t.due === S.today ? 'today' : ''}">${over ? 'overdue · ' : ''}${t.due === S.today ? 'today' : fmtDay(t.due)}</span>` : '';
   const recur = t.recur ? `<span class="recur">&#8635; ${esc(t.recur)}</span>` : '';
-  const proj = opts.showProject ? `<span class="proj">${esc(projName(t.project_id))}${projIsHouse(t.project_id) ? ' · shared' : ''}</span>` : '';
+  const p = projObj(t.project_id);
+  const proj = opts.showProject
+    ? `<span class="proj">${esc(isClass(p) ? classCode(p.name) : projName(t.project_id))}${projIsHouse(t.project_id) ? ' · shared' : ''}</span>` : '';
+  const kind = t.kind ? `<span class="kind k-${t.kind}">${t.kind}</span>` : '';
+  const est = t.est ? `<span class="est" title="Date is a best guess, not from the syllabus">est.</span>` : '';
+  const notes = opts.notes && t.notes ? `<div class="tnotes">${esc(t.notes)}</div>` : '';
   return `<div class="task ${t.done ? 'done' : ''}" data-id="${t.id}">
     <div class="circ pr${t.priority}" data-act="toggle">${t.done ? '&#10003;' : ''}</div>
     <div class="tbody" data-act="edit">
       <div class="tcontent">${esc(t.content)}</div>
-      <div class="tmeta">${dueChip}${recur}${proj}${t.notes ? `<span>&#128196;</span>` : ''}</div>
+      <div class="tmeta">${kind}${dueChip}${est}${recur}${proj}${!opts.notes && t.notes ? `<span>&#128196;</span>` : ''}</div>${notes}
     </div></div>`;
 }
 function choreRow(c) {
@@ -328,8 +380,10 @@ function render() {
       <div id="hc-list" class="muted">Loading…</div>`;
     bindChoreForm();
     loadChoreSchedule();
+  } else if (tab === 'classes') {
+    el.innerHTML = renderClasses(open);
   } else if (tab === 'projects' && !openProject) {
-    el.innerHTML = S.projects.map(p => {
+    el.innerHTML = S.projects.filter(p => !isClass(p)).map(p => {
       const n = S.tasks.filter(t => t.project_id === p.id && !t.done).length;
       return `<div class="prow" data-proj="${p.id}"><span class="dot ${p.person === 'house' ? 'house' : ''}"></span>
         ${esc(p.name)}${p.person === 'house' ? ' <span class="muted">(shared)</span>' : ''}<span class="cnt">${n}</span></div>`;
@@ -349,7 +403,89 @@ function render() {
   wire();
 }
 
+// ---------- classes tab ----------
+// Sort: soonest due first, then heavier kind first (exam/project > quiz > hw > admin > reading).
+function clsSort(a, b) {
+  if ((a.due || '9') !== (b.due || '9')) return (a.due || '9') < (b.due || '9') ? -1 : 1;
+  const w = (KIND_W[b.kind] || 0) - (KIND_W[a.kind] || 0);
+  return w || (a.priority - b.priority) || (a.pos - b.pos);
+}
+function renderClasses(open) {
+  const classes = S.projects.filter(isClass);
+  const legend = `<div class="legend">triage: ${KINDS.map(k => `<span class="kind k-${k}">${k}</span>`).join('<span class="arrow">&lt;</span>')}
+    <span style="margin-left:.4rem"><span class="est" style="color:var(--gold)">est.</span> = date is a guess, check Canvas</span></div>`;
+  if (!classes.length)
+    return `<div class="empty">No class lists yet.</div><div><button class="btn ghost" id="nc-add">+ New class</button></div>`;
+  if (clsFilter && !classes.some(c => c.id === clsFilter)) clsFilter = 0;
+  const chips = `<div class="chips"><button data-cls="0" class="${clsFilter ? '' : 'on'}">All</button>` +
+    classes.map(c => `<button data-cls="${c.id}" class="${clsFilter === c.id ? 'on' : ''}">${esc(classCode(c.name))}</button>`).join('') +
+    `<button data-cls="new" style="color:var(--soft)">+ class</button></div>`;
+  const sel = clsFilter ? classes.find(c => c.id === clsFilter) : null;
+  const info = sel ? `<div class="cls-info"><b style="font-weight:normal; color:var(--ink)">${esc(sel.name)}</b>${sel.info ? ' · ' + esc(sel.info) : ''}</div>` : '';
+  const ctl = `<div class="cls-ctl">
+    <span class="seg" id="cls-view"><button data-v="date" class="${clsView === 'date' ? 'on' : ''}">By date</button><button data-v="class" class="${clsView === 'class' ? 'on' : ''}">By class</button></span>
+    <label><input type="checkbox" id="cls-hide-r" ${hideReadings ? 'checked' : ''}> hide readings</label>
+    <span id="cls-done-t" style="cursor:pointer; margin-left:auto">${showDone ? 'hide done' : 'show done'}</span></div>`;
+  const ids = new Set((sel ? [sel] : classes).map(c => c.id));
+  let list = (showDone ? S.tasks : open).filter(t => ids.has(t.project_id));
+  if (hideReadings) list = list.filter(t => t.kind !== 'reading');
+  list.sort(clsSort);
+  const row = t => taskRow(t, { showProject: !sel, notes: true });
+  let h = '';
+  if (!list.length) h = '<div class="empty">Nothing here.</div>';
+  else if (clsView === 'class') {
+    for (const c of (sel ? [sel] : classes)) {
+      const l = list.filter(t => t.project_id === c.id);
+      if (!l.length) continue;
+      h += `<div class="sec">${esc(c.name)}<span class="n">${l.filter(t => !t.done).length}</span></div>` +
+        (!sel && c.info ? `<div class="cls-info">${esc(c.info)}</div>` : '') + l.map(row).join('');
+    }
+  } else {
+    const wk1 = addD(S.today, 6), wk2 = addD(S.today, 13);
+    const groups = [
+      ['Overdue', t => t.due && t.due < S.today && !t.done, 'over'],
+      ['This week', t => t.due && t.due >= S.today && t.due <= wk1],
+      ['Next week', t => t.due && t.due > wk1 && t.due <= wk2],
+      ...[...new Set(list.filter(t => t.due && t.due > wk2).map(t => t.due.slice(0, 7)))].sort().map(m =>
+        [new Date(m + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long' }), t => t.due && t.due > wk2 && t.due.startsWith(m)]),
+      ['No date', t => !t.due],
+      ['Done', t => t.done && t.due && t.due < S.today],
+    ];
+    const seen = new Set();
+    for (const [label, f, cls] of groups) {
+      const l = list.filter(t => !seen.has(t.id) && f(t));
+      l.forEach(t => seen.add(t.id));
+      if (!l.length) continue;
+      h += `<div class="sec ${cls || ''}">${label}<span class="n">${l.filter(t => !t.done).length}</span></div>` + l.map(row).join('');
+    }
+  }
+  return chips + info + ctl + legend + h;
+}
+function wireClasses() {
+  document.querySelectorAll('.chips [data-cls]').forEach(b => b.onclick = () => {
+    if (b.dataset.cls === 'new') return newClass();
+    clsFilter = Number(b.dataset.cls); render(); syncQaProjects();
+  });
+  document.querySelectorAll('#cls-view button').forEach(b => b.onclick = () => {
+    clsView = b.dataset.v; try { localStorage.setItem('cls_view', clsView); } catch (e) {} render();
+  });
+  const hr = $('cls-hide-r'); if (hr) hr.onchange = () => {
+    hideReadings = hr.checked; try { localStorage.setItem('cls_hide_readings', hideReadings ? '1' : '0'); } catch (e) {} render();
+  };
+  const dt = $('cls-done-t'); if (dt) dt.onclick = () => { showDone = !showDone; render(); };
+  const nc = $('nc-add'); if (nc) nc.onclick = newClass;
+}
+async function newClass() {
+  const name = prompt('Class name (start with the course number, e.g. "15.402 Managerial Finance"):');
+  if (!name || !name.trim()) return;
+  const info = prompt('Meeting time / grading notes (optional):') || '';
+  await fetch('/api/todo/projects', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: name.trim(), kind: 'class', info: info.trim() }) });
+  load();
+}
+
 function wire() {
+  wireClasses();
   document.querySelectorAll('[data-act="toggle"]').forEach(c => c.onclick = async (e) => {
     e.stopPropagation();
     const id = c.closest('.task').dataset.id;
@@ -490,12 +626,21 @@ function setPri(p) {
   });
 }
 document.querySelectorAll('#ed-pri button').forEach(b => b.onclick = () => setPri(Number(b.dataset.p)));
+const KIND_PRI = { reading: 4, admin: 4, hw: 3, quiz: 2, exam: 1, project: 1 };
+function setKind(k) {
+  edKind = k;
+  document.querySelectorAll('#ed-kind button').forEach(b => b.className = b.dataset.k === k ? 'on' + (KIND_PRI[k] || 4) : '');
+}
+document.querySelectorAll('#ed-kind button').forEach(b => b.onclick = () => { setKind(b.dataset.k); if (b.dataset.k) setPri(KIND_PRI[b.dataset.k]); });
 function openEdit(id) {
   editing = S.tasks.find(t => t.id === id);
   if (!editing) return;
   $('ed-content').value = editing.content;
   $('ed-due').value = editing.due || '';
   $('ed-recur').value = editing.recur || '';
+  $('ed-notes').value = editing.notes || '';
+  $('ed-est').checked = !!editing.est;
+  setKind(editing.kind || '');
   setPri(editing.priority);
   $('ed-proj').innerHTML = S.projects.map(p =>
     `<option value="${p.id}" ${p.id === editing.project_id ? 'selected' : ''}>${esc(p.name)}${p.person === 'house' ? ' (shared)' : ''}</option>`).join('');
@@ -506,6 +651,7 @@ $('ed-save').onclick = async () => {
   await fetch(`/api/todo/tasks/${editing.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ content: $('ed-content').value.trim(), due: $('ed-due').value,
       recur: $('ed-recur').value.trim().toLowerCase(), priority: edPri,
+      kind: edKind, est: $('ed-est').checked, notes: $('ed-notes').value.trim(),
       project_id: Number($('ed-proj').value) }) });
   $('edit-bg').classList.remove('on');
   load();
@@ -536,11 +682,23 @@ function syncQaProjects() {
   $('qa-proj').innerHTML = S.projects
     .filter(p => !(p.person === 'house' && p.name === 'Groceries'))
     .map(p => `<option value="${p.id}">${esc(p.name)}${p.person === 'house' ? ' (shared)' : ''}</option>`).join('');
-  // default: the open project, else your Inbox
+  // default: the open project (or selected class), else your Inbox
+  const firstClass = S.projects.find(isClass);
   const def = (tab === 'projects' && openProject) ? openProject
+    : (tab === 'classes' && (clsFilter || firstClass)) ? (clsFilter || firstClass.id)
     : (S.projects.find(p => p.person === S.role && p.name === 'Inbox') || S.projects[0] || {}).id;
-  $('qa-proj').value = cur && [...$('qa-proj').options].some(o => o.value === cur) ? cur : def;
+  const keep = cur && [...$('qa-proj').options].some(o => o.value === cur) && !(tab === 'classes' || tab === 'projects');
+  $('qa-proj').value = keep ? cur : def;
+  syncQaKind();
 }
+// kind + "date is a guess" only make sense on a class list
+function syncQaKind() {
+  const on = isClass(projObj(Number($('qa-proj').value)));
+  $('qa-kind').style.display = on ? '' : 'none';
+  $('qa-est-wrap').style.display = on ? 'inline-flex' : 'none';
+  $('qa-pri').style.display = on ? 'none' : '';
+}
+$('qa-proj').onchange = syncQaKind;
 async function quickAdd() {
   const raw = $('qa-in').value.trim();
   if (!raw || !S) return;
@@ -562,10 +720,12 @@ async function quickAdd() {
     recur = (prompt('Repeat rule (e.g. "every mon, thu" · "every 2 weeks" · "every 15th"):') || '').trim().toLowerCase();
     if (recur && !recur.startsWith('every')) recur = 'every ' + recur;
   }
+  const pid = Number($('qa-proj').value);
+  const cls = isClass(projObj(pid));
   await fetch('/api/todo/tasks', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ project_id: Number($('qa-proj').value), content: raw, due, recur,
-      priority: Number($('qa-pri').value) }) });
-  $('qa-in').value = '';
+    body: JSON.stringify({ project_id: pid, content: raw, due, recur,
+      ...(cls ? { kind: $('qa-kind').value, est: $('qa-est').checked } : { priority: Number($('qa-pri').value) }) }) });
+  $('qa-in').value = ''; $('qa-est').checked = false;
   load();
 }
 $('qa-add').onclick = quickAdd;
