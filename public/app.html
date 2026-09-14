@@ -93,17 +93,15 @@
     .ch-title { font-size:1.12rem; }
     .wo-title { font-size:1.15rem; }
     .wo-items { font-size:1rem; }
-    .gr-title { font-size:1.1rem; }
     .polaroid .cap { font-size:1.05rem; }
     .amb-clock { font-size:4rem; }
     .amb-sub { font-size:1.25rem; }
     /* long tiles scroll inside their frame instead of clipping */
-    #card-weekend, #card-chores, #card-grocery { display:flex; flex-direction:column; }
-    #weekend, #chores, #grocery { flex:1; min-height:0; overflow-y:auto; padding-right:.35rem;
+    #card-weekend, #card-chores { display:flex; flex-direction:column; }
+    #weekend, #chores { flex:1; min-height:0; overflow-y:auto; padding-right:.35rem;
       scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
-    #weekend::-webkit-scrollbar, #chores::-webkit-scrollbar, #grocery::-webkit-scrollbar { width:6px; }
-    #weekend::-webkit-scrollbar-thumb, #chores::-webkit-scrollbar-thumb,
-    #grocery::-webkit-scrollbar-thumb { background:var(--line); border-radius:99px; }
+    #weekend::-webkit-scrollbar, #chores::-webkit-scrollbar { width:6px; }
+    #weekend::-webkit-scrollbar-thumb, #chores::-webkit-scrollbar-thumb { background:var(--line); border-radius:99px; }
   }
 
   .card { background:var(--card); border:1px solid var(--line); border-radius:.7rem;
@@ -267,14 +265,6 @@
   #quip { font-size:.92rem; color:var(--soft); font-style:italic; max-width:24rem;
     text-align:center; line-height:1.25; transition:opacity .8s ease; }
 
-  /* grocery */
-  #card-grocery { display:none; border-top:3px solid var(--green); }
-  .gr-row { display:flex; align-items:center; gap:.55rem; padding:.3rem 0; border-bottom:1px dashed var(--line); cursor:pointer; }
-  .gr-row:last-of-type { border-bottom:none; }
-  .gr-check { width:1.4rem; height:1.4rem; border:2px solid var(--line); border-radius:99px; flex:0 0 auto; }
-  .gr-title { font-size:.98rem; }
-  .gr-cols { column-count:2; column-gap:1.2rem; }
-  .gr-cols .gr-row { break-inside:avoid; }
 
   /* date idea bar (evenings) */
   #datebar { display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:.7rem;
@@ -298,9 +288,6 @@
   }
   body.m-morning .mb-min { font-size:1.15rem; padding:.3rem .55rem; }
   body.m-morning #card-shift .sh-label { font-size:1.2rem; }
-  /* evening: weekend + groceries + chores lead; workouts rests */
-  body.m-evening #card-workouts { display:none; }
-  body.m-evening #card-grocery { display:block; grid-area:workouts; }
 
   /* warm night theme (auto 8 PM – 6 AM) — dimmer paper, same bones */
   body.night { --paper:#211d17; --card:#2a251d; --line:#403829; --ink:#e6ddca; --soft:#a2967d;
@@ -396,7 +383,6 @@
   <section class="card" id="card-mbta"><h2>Next trains + buses</h2><div id="mbta" class="muted">Loading…</div></section>
   <section class="card" id="card-chores"><h2>Chores today</h2><div id="chores" class="muted">Loading…</div></section>
   <section class="card" id="card-workouts"><h2>Workouts today</h2><div id="workouts" class="muted">Loading…</div></section>
-  <section class="card" id="card-grocery"><h2>Groceries</h2><div id="grocery" class="muted">Loading…</div></section>
   <section class="card" id="card-photos">
     <div class="polaroid" id="polaroid0"><div class="ph" id="ph0"></div><div class="cap" id="cap0"></div></div>
     <div class="polaroid" id="polaroid1"><div class="ph" id="ph1"></div><div class="cap" id="cap1"></div></div>
@@ -721,21 +707,6 @@ function renderChores() {
       — <a class="plain" href="/todo">open the lists →</a></div>`);
   }
 }
-function renderGrocery() {
-  const el = $('grocery'), g = D.grocery;
-  if (!g || !g.items.length) {
-    return el.innerHTML = `<span class="muted">List's empty. Add things from your phone the second you notice them.</span>
-      <div style="margin-top:.5rem"><a class="plain" href="/todo">Open Groceries →</a></div>`;
-  }
-  el.innerHTML = `<div class="${g.items.length > 7 ? 'gr-cols' : ''}">` + g.items.map(i => `
-    <div class="gr-row" data-gr="${i.id}"><div class="gr-check"></div>
-      <div class="gr-title">${esc(i.content)}</div></div>`).join('') + `</div>` +
-    (g.total > g.items.length ? `<div class="muted" style="margin-top:.3rem">+ ${g.total - g.items.length} more</div>` : '');
-  el.querySelectorAll('.gr-row').forEach(r => r.onclick = async () => {
-    await fetch(`/api/todo/tasks/${r.dataset.gr}/complete`, { method:'POST' });
-    load();
-  });
-}
 function renderWorkouts() {
   const el = $('workouts'), r = D.workouts;
   const link = url => `<div style="margin-top:.5rem"><a class="plain" href="${esc(url)}">Open workout planner →</a></div>`;
@@ -744,7 +715,9 @@ function renderWorkouts() {
   }
   const body = r.data.plans.map(p => {
     const t = p.today;
-    const inner = t
+    const inner = p.hasPlan === false
+      ? `<div class="muted" style="font-style:italic">No plan for this week yet.</div>`
+      : t
       ? `<div class="wo-title">${esc(t.name)}</div>
          <div class="wo-meta">${esc([t.dur, t.block].filter(Boolean).join(' · '))}</div>
          ${t.items.length ? `<div class="wo-items">${esc(t.items.join(' · '))}${t.more ? ` <span class="muted">+${t.more} more</span>` : ''}</div>` : ''}`
@@ -913,14 +886,14 @@ function renderEvents() {
 }
 
 // ---------- ambient art mode (30 min idle) ----------
-// Weekday rush hours (5-9 AM, 4-8 PM) stay on the live dashboard: no photo takeover,
+// Weekday rush hours (5-9 AM, 4-9:30 PM) stay on the live dashboard: no photo takeover,
 // and an ambient screen already up drops back within 30 s. ?rush=1|0 overrides for previewing.
 function inRushHours(now = new Date()) {
   const q = new URLSearchParams(location.search);
   if (q.has('rush')) return q.get('rush') === '1';
-  const d = now.getDay(), h = now.getHours();
+  const d = now.getDay(), t = now.getHours() * 60 + now.getMinutes();
   if (d === 0 || d === 6) return false;
-  return (h >= 5 && h < 9) || (h >= 16 && h < 20);
+  return (t >= 5 * 60 && t < 9 * 60) || (t >= 16 * 60 && t < 21 * 60 + 30);
 }
 let lastActivity = Date.now(), ambientOn = false, ambTimer = null;
 function ambientClock() {
@@ -986,7 +959,7 @@ async function load() {
     if (!fbPerson) fbPerson = D.role;
     $('offline').classList.remove('on');
     renderShift(); renderWeekend(); renderWeather(); renderMbta(); renderChores(); renderWorkouts();
-    renderGrocery(); renderEvents(); syncPhotos(); setFbWho();
+    renderEvents(); syncPhotos(); setFbWho();
     if (!$('quip').textContent) tickQuip();
   } catch (e) { $('offline').classList.add('on'); }
 }

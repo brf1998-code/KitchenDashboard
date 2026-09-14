@@ -448,20 +448,23 @@ async function fetchWorkouts() {
     const mon = mondayISO();
     const people = [
       { who: 'Brendan', keys: [`wkplan-${mon}`, `wkplan-${mon}b`, `wkplan-brendan-${mon}`] },
-      { who: 'Emma', keys: [`wkplan-emma-${mon}`, `wkplan-e-${mon}`] },
+      { who: 'Emma', keys: [`wkplan-emma-${mon}`, `wkplan-emma-${mon}b`, `wkplan-e-${mon}`] },
     ];
     const plans = [];
     for (const p of people) {
+      let plan = null;
       for (const key of p.keys) {
         try {
           const j = await getJSON(`${WORKOUT_URL}/api/${encodeURIComponent(key)}`);
           const hasPlan = j && (Array.isArray(j.days) ? j.days.length : Object.keys(j.days || {}).length);
-          if (hasPlan) {
-            plans.push({ who: p.who, weekTitle: j.title || '', today: pickToday(j) });
-            break;
-          }
+          if (hasPlan) { plan = j; break; }
         } catch (e) { /* try next key */ }
       }
+      // Everyone stays on the card. Without this, a person with no plan for the week
+      // vanished silently and looked like a bug (Emma, Sept 2026).
+      plans.push(plan
+        ? { who: p.who, hasPlan: true, weekTitle: plan.title || '', today: pickToday(plan) }
+        : { who: p.who, hasPlan: false, weekTitle: '', today: null });
     }
     return { plans, url: WORKOUT_URL };
   });
